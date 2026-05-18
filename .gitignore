@@ -1,0 +1,20 @@
+# 构建产物
+build/
+Car/build/
+seg/build/
+
+# Python
+__pycache__/
+*.pyc
+
+# IDE
+.vscode/
+compile_commands.json
+
+# 模型文件 (体积大，单独管理)
+*.rknn
+*.pth
+
+# 系统
+.DS_Store
+Thumbs.db
