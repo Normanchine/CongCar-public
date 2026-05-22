@@ -56,11 +56,13 @@ void SegmentationTask::run() {
         }
         if (!has_frame) break;
 
-        auto t1 = std::chrono::steady_clock::now();
+        auto t_start = std::chrono::steady_clock::now();
 
         auto [outputs, infer_us] = future.get();  // 纯 rknn_run 耗时
 
         future = engine.submit(std::move(next_input));
+
+        auto t_post_start = std::chrono::steady_clock::now();
 
         if (!outputs.empty()) {
             int orig_w = ctx_->frame_width.load(std::memory_order_acquire);
@@ -101,9 +103,10 @@ void SegmentationTask::run() {
                       << "us  publish=" << pub_us << std::endl;
         }
 
-        auto t2 = std::chrono::steady_clock::now();
-        auto post_us = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
-        ctx_->perf_stats.recordStages(SLOT_SEGMENTATION, 0, infer_us, post_us);
+        auto t_end = std::chrono::steady_clock::now();
+        auto total_us = std::chrono::duration_cast<std::chrono::microseconds>(t_end - t_start).count();
+        auto post_us  = std::chrono::duration_cast<std::chrono::microseconds>(t_end - t_post_start).count();
+        ctx_->perf_stats.recordStages(SLOT_SEGMENTATION, total_us, infer_us, post_us);
     }
 
     std::cout << "[SegTask] 已退出" << std::endl;

@@ -23,15 +23,13 @@ void PerfStats::record(int slot_id, int64_t elapsed_us) {
 }
 
 void PerfStats::recordStages(int slot_id,
-                              int64_t pre_us, int64_t infer_us, int64_t post_us) {
+                              int64_t total_us, int64_t infer_us, int64_t post_us) {
     auto& s = slots_[slot_id];
-    int64_t frame_total = pre_us + infer_us + post_us;
     s.frame_count.fetch_add(1, std::memory_order_release);
-    s.total_time_us.fetch_add(frame_total, std::memory_order_release);
-    s.pre_acc_us.fetch_add(pre_us, std::memory_order_release);
+    s.total_time_us.fetch_add(total_us, std::memory_order_release);
     s.infer_acc_us.fetch_add(infer_us, std::memory_order_release);
     s.post_acc_us.fetch_add(post_us, std::memory_order_release);
-    s.last_frame_time_us.store(frame_total, std::memory_order_release);
+    s.last_frame_time_us.store(total_us, std::memory_order_release);
 }
 
 double PerfStats::getFps(int slot_id) const {
@@ -59,7 +57,6 @@ void PerfStats::report() {
         oss << std::left  << std::setw(10) << "模块"
             << std::right << std::setw(8)  << "帧数"
             << std::setw(10) << "耗时ms"
-            << std::setw(10) << "pre"
             << std::setw(10) << "infer"
             << std::setw(10) << "post"
             << std::setw(10) << "FPS";
@@ -69,7 +66,6 @@ void PerfStats::report() {
     for (int i = 0; i < SLOT_MAX; ++i) {
         auto cnt   = slots_[i].frame_count.exchange(0, std::memory_order_acquire);
         auto total = slots_[i].total_time_us.exchange(0, std::memory_order_acquire);
-        auto pre   = slots_[i].pre_acc_us.exchange(0, std::memory_order_acquire);
         auto infer = slots_[i].infer_acc_us.exchange(0, std::memory_order_acquire);
         auto post  = slots_[i].post_acc_us.exchange(0, std::memory_order_acquire);
 
@@ -84,17 +80,14 @@ void PerfStats::report() {
             << std::fixed << std::setprecision(2)
             << std::setw(10) << avg_ms;
 
-        bool has_stages = (pre + infer + post) > 0;
+        bool has_stages = (infer + post) > 0;
         if (has_stages) {
-            double pre_avg   = pre   / 1000.0 / cnt;
             double infer_avg = infer / 1000.0 / cnt;
             double post_avg  = post  / 1000.0 / cnt;
-            oss << std::setw(10) << pre_avg
-                << std::setw(10) << infer_avg
+            oss << std::setw(10) << infer_avg
                 << std::setw(10) << post_avg;
         } else {
             oss << std::setw(10) << "-"
-                << std::setw(10) << "-"
                 << std::setw(10) << "-";
         }
 

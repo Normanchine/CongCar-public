@@ -57,11 +57,13 @@ void DetectionTask::run() {
         }
         if (!has_frame) break;
 
-        auto t1 = std::chrono::steady_clock::now();
+        auto t_start = std::chrono::steady_clock::now();
 
         auto [outputs, infer_us] = future.get();  // 纯 rknn_run 耗时
 
         future = engine.submit(std::move(next_input));
+
+        auto t_post_start = std::chrono::steady_clock::now();
 
         if (!outputs.empty()) {
             int orig_w = ctx_->frame_width.load(std::memory_order_acquire);
@@ -129,9 +131,10 @@ void DetectionTask::run() {
                       << "us  publish=" << pub_us << "us  raw=" << all_raw.size() << std::endl;
         }
 
-        auto t2 = std::chrono::steady_clock::now();
-        auto post_us = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
-        ctx_->perf_stats.recordStages(SLOT_DETECTION, 0, infer_us, post_us);
+        auto t_end = std::chrono::steady_clock::now();
+        auto total_us = std::chrono::duration_cast<std::chrono::microseconds>(t_end - t_start).count();
+        auto post_us  = std::chrono::duration_cast<std::chrono::microseconds>(t_end - t_post_start).count();
+        ctx_->perf_stats.recordStages(SLOT_DETECTION, total_us, infer_us, post_us);
     }
 
     std::cout << "[DetTask] 已退出" << std::endl;

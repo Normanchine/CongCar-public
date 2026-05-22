@@ -67,7 +67,7 @@ if (debug) launchTask("DisplayTask");
 
 ## PerfStats
 
-5 个槽位: Capture / Seg / Detect / Control / Display。AI 任务通过 `recordStages(slot, pre_us, infer_us, post_us)` 记录分阶段耗时。T1 定时器每 5 秒调用 `report()`。
+5 个槽位: Capture / Seg / Detect / Control / Display。AI 任务通过 `recordStages(slot, total_us, infer_us, post_us)` 记录墙钟耗时 + 推理 + 后处理。T1 定时器每 5 秒调用 `report()`。
 
 ## 强制规则
 
