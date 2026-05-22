@@ -43,6 +43,8 @@ DisplayTask:
 ControlTask:
   cv.wait_for(50ms) ← 被 SegTask notify 唤醒，或超时兜底
   scene_manager.run(ctx) → steering_pwm/target_speed → UART sendControl
+
+退出: Ctrl+C / 赛道丢失 → stop=true → 各线程安全退出 → sendControl(0,neutral)
 ```
 
 ## 线程启动顺序

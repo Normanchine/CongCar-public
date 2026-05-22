@@ -19,7 +19,11 @@ void NormalScene::run(SharedContext* ctx) {
     // ---- 1. 中线提取 ----
     std::vector<cv::Point2f> centers;
     pathplan::extractCenterline(mask, centers);
-    if (centers.empty()) return;
+    if (centers.empty()) {
+        std::cerr << "[NormalScene] 赛道丢失，退出程序" << std::endl;
+        ctx->stop.store(true, std::memory_order_release);
+        return;
+    }
 
     const auto& ctrl = ctx->config.control;
 
