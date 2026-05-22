@@ -40,6 +40,8 @@ static bool load_model(const char* path, rknn_context* ctx,
         return false;
     }
 
+    rknn_set_core_mask(*ctx, RKNN_NPU_CORE_2);  // 绑定 Core2，与 Car 程序一致
+
     rknn_input_output_num io_num;
     rknn_query(*ctx, RKNN_QUERY_IN_OUT_NUM, &io_num, sizeof(io_num));
 
@@ -71,8 +73,9 @@ static cv::Mat preprocess(const cv::Mat& bgr, int w, int h) {
 }
 
 // ===================== 推理 =====================
+// 返回纯 rknn_run 耗时(us)，与 Car 程序 RKNNEngine 的计时口径一致
 static bool infer(rknn_context ctx, const cv::Mat& input,
-                  std::vector<cv::Mat>& outputs,
+                  std::vector<cv::Mat>& outputs, int64_t* run_us,
                   const std::vector<rknn_tensor_attr>& output_attrs,
                   uint32_t n_outputs) {
     rknn_input rk_in{};
@@ -88,7 +91,10 @@ static bool infer(rknn_context ctx, const cv::Mat& input,
         return false;
     }
 
+    auto t0 = std::chrono::steady_clock::now();
     ret = rknn_run(ctx, nullptr);
+    auto t1 = std::chrono::steady_clock::now();
+
     if (ret != 0) {
         std::cerr << "rknn_run 失败" << std::endl;
         return false;
@@ -126,6 +132,8 @@ static bool infer(rknn_context ctx, const cv::Mat& input,
     }
 
     rknn_outputs_release(ctx, n_outputs, rk_outs.data());
+
+    *run_us = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
     return true;
 }
 
@@ -220,9 +228,10 @@ int main(int argc, char* argv[]) {
 
     // 4. 推理
     std::cout << "推理中..." << std::endl;
+    int64_t run_us = 0;
     auto t_infer_start = std::chrono::steady_clock::now();
     std::vector<cv::Mat> outputs;
-    if (!infer(ctx, input, outputs, output_attrs, n_outputs)) {
+    if (!infer(ctx, input, outputs, &run_us, output_attrs, n_outputs)) {
         rknn_destroy(ctx);
         return 1;
     }
@@ -260,12 +269,14 @@ int main(int argc, char* argv[]) {
     auto t_total_end = std::chrono::steady_clock::now();
 
     // ---- 性能统计 ----
-    auto load_ms = std::chrono::duration<float, std::milli>(t_load - t0).count();
-    auto pre_ms  = std::chrono::duration<float, std::milli>(t_pre_end - t_pre_start).count();
-    auto infer_ms= std::chrono::duration<float, std::milli>(t_infer_end - t_infer_start).count();
-    auto post_ms = std::chrono::duration<float, std::milli>(t_post_end - t_post_start).count();
-    auto viz_ms  = std::chrono::duration<float, std::milli>(t_viz_end - t_viz_start).count();
-    auto total_ms= std::chrono::duration<float, std::milli>(t_total_end - t_total_start).count();
+    auto load_ms  = std::chrono::duration<float, std::milli>(t_load - t0).count();
+    auto pre_ms   = std::chrono::duration<float, std::milli>(t_pre_end - t_pre_start).count();
+    auto infer_ms = std::chrono::duration<float, std::milli>(t_infer_end - t_infer_start).count();
+    float run_ms  = run_us / 1000.0f;  // 纯 rknn_run，与 Car 程序口径一致
+    float oh_ms   = infer_ms - run_ms; // inputs_set + outputs_get + clone 开销
+    auto post_ms  = std::chrono::duration<float, std::milli>(t_post_end - t_post_start).count();
+    auto viz_ms   = std::chrono::duration<float, std::milli>(t_viz_end - t_viz_start).count();
+    auto total_ms = std::chrono::duration<float, std::milli>(t_total_end - t_total_start).count();
 
     std::cout << "\n"
               << std::string(60, '=') << "\n"
@@ -274,8 +285,10 @@ int main(int argc, char* argv[]) {
                                       << load_ms << " ms\n"
               << "  Preprocessing:  " << pre_ms  << " ms"
               << " (" << (pre_ms / total_ms * 100) << "%)\n"
-              << "  Inference:      " << infer_ms << " ms"
-              << " (" << (infer_ms / total_ms * 100) << "%)\n"
+              << "  Inference:      " << run_ms  << " ms  (纯 rknn_run)"
+              << " (" << (run_ms / total_ms * 100) << "%)\n"
+              << "  API 开销:       " << oh_ms   << " ms  (inputs_set+outputs_get+clone)"
+              << " (" << (oh_ms / total_ms * 100) << "%)\n"
               << "  Postprocessing: " << post_ms << " ms"
               << " (" << (post_ms / total_ms * 100) << "%)\n"
               << "  Visualization:  " << viz_ms  << " ms"
