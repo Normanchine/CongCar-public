@@ -16,6 +16,7 @@ compile_commands.json
 *.pth
 
 # 临时/草稿文件
+Car/TODO.md
 SKILL.md
 Untitled.md
 car.md
