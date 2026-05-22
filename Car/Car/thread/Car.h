@@ -25,6 +25,9 @@ public:
     // 通知所有线程退出 → join全部线程 → 销毁线程池
     void stop();
 
+    // 仅设置退出标志（信号安全，Ctrl+C 处理用）
+    void signalStop() { ctx_.stop.store(true, std::memory_order_release); }
+
     // 阻塞等待所有线程结束
     void wait();
 
