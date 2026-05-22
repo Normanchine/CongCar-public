@@ -15,6 +15,14 @@ compile_commands.json
 *.rknn
 *.pth
 
+# 临时/草稿文件
+SKILL.md
+Untitled.md
+car.md
+infer_test.txt
+seg_test.txt
+上位机模板.md
+
 # 系统
 .DS_Store
 Thumbs.db
