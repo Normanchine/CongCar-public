@@ -3,7 +3,7 @@
 
 bool Car::init(int argc, char* argv[]) {
     // 命令行：./car [config_path]
-    std::string config_path = "config/default.json";
+    std::string config_path = "/home/orangepi/Desktop/new/Car/config/default.json";
     if (argc > 1) {
         config_path = argv[1];
     }

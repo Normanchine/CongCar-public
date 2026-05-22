@@ -12,9 +12,9 @@
 #include <vector>
 
 // ===================== 配置默认值 =====================
-static const char*  DEFAULT_MODEL_PATH = "model/pplite_seg.rknn";
-static const int    MODEL_W = 160;
-static const int    MODEL_H = 160;
+static const char*  DEFAULT_MODEL_PATH = "/home/orangepi/Desktop/new/seg/build/model/pplite_seg.rknn";
+static const int    MODEL_W = 256;
+static const int    MODEL_H = 128;
 static const int    NUM_CLASSES = 2;
 static const float  OVERLAY_ALPHA = 0.5f;
 

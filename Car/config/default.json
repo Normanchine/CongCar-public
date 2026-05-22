@@ -21,15 +21,15 @@
     "confidence_threshold": 0.5,
     "nms_threshold": 0.45,
     "detection_model_path": "/home/orangepi/Desktop/setupUI-1.0.6_app-1.0.6/setupUI/infer_wrap/base/model/rknn_lt.rknn",
-    "segmentation_model_path": "/home/orangepi/Desktop/seg_python/model/pplite_seg.rknn",
+    "segmentation_model_path": "/home/orangepi/Desktop/new/seg/build/model/pplite_seg.rknn",
     "ocr_model_path": "",
-    "segmentation_input_w": 160,
-    "segmentation_input_h": 160,
+    "segmentation_input_w": 256,
+    "segmentation_input_h": 128,
     "detection_input_w": 640,
     "detection_input_h": 640
   },
 
-  "calib": {
+  "calib": {  
     "src_quad": [0, 0, 0, 0, 0, 0, 0, 0],
     "bird_width": 640,
     "bird_height": 480,
