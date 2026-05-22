@@ -58,9 +58,8 @@ void SegmentationTask::run() {
 
         auto t1 = std::chrono::steady_clock::now();
 
-        auto outputs = future.get();
+        auto [outputs, infer_us] = future.get();  // 纯 rknn_run 耗时
 
-        auto t2 = std::chrono::steady_clock::now();
         future = engine.submit(std::move(next_input));
 
         if (!outputs.empty()) {
@@ -102,9 +101,8 @@ void SegmentationTask::run() {
                       << "us  publish=" << pub_us << std::endl;
         }
 
-        auto t3 = std::chrono::steady_clock::now();
-        auto infer_us = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
-        auto post_us  = std::chrono::duration_cast<std::chrono::microseconds>(t3 - t2).count();
+        auto t2 = std::chrono::steady_clock::now();
+        auto post_us = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
         ctx_->perf_stats.recordStages(SLOT_SEGMENTATION, 0, infer_us, post_us);
     }
 

@@ -69,8 +69,8 @@ void RKNNEngine::release() {
     ready_ = false;
 }
 
-std::future<std::vector<cv::Mat>> RKNNEngine::submit(cv::Mat input) {
-    std::promise<std::vector<cv::Mat>> promise;
+std::future<RKNNEngine::Result> RKNNEngine::submit(cv::Mat input) {
+    std::promise<Result> promise;
     auto future = promise.get_future();
     {
         std::lock_guard<std::mutex> lock(queue_mtx_);
@@ -81,10 +81,6 @@ std::future<std::vector<cv::Mat>> RKNNEngine::submit(cv::Mat input) {
 }
 
 void RKNNEngine::workerLoop() {
-    int64_t run_acc = 0, out_acc = 0;
-    int cnt = 0;
-    constexpr int kReportInterval = 100;
-
     while (!stop_) {
         Task task;
         {
@@ -107,7 +103,7 @@ void RKNNEngine::workerLoop() {
 
         int ret = rknn_inputs_set(ctx_, 1, &rk_in);
         if (ret != 0) {
-            task.promise.set_value({});
+            task.promise.set_value({{}, 0});
             continue;
         }
 
@@ -116,7 +112,7 @@ void RKNNEngine::workerLoop() {
         auto t1 = std::chrono::steady_clock::now();
 
         if (ret != 0) {
-            task.promise.set_value({});
+            task.promise.set_value({{}, 0});
             continue;
         }
 
@@ -128,7 +124,7 @@ void RKNNEngine::workerLoop() {
         }
         ret = rknn_outputs_get(ctx_, n_outputs_, rk_outs.data(), nullptr);
         if (ret != 0) {
-            task.promise.set_value({});
+            task.promise.set_value({{}, 0});
             continue;
         }
 
@@ -153,21 +149,9 @@ void RKNNEngine::workerLoop() {
 
         rknn_outputs_release(ctx_, n_outputs_, rk_outs.data());
 
-        auto t2 = std::chrono::steady_clock::now();
+        auto infer_us = std::chrono::duration_cast<std::chrono::microseconds>(
+            t1 - t0).count();
 
-        task.promise.set_value(std::move(outputs));
-
-        run_acc += std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
-        out_acc += std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
-        cnt++;
-
-        if (cnt % kReportInterval == 0) {
-            std::cout << "[RKNNEngine] " << cnt << " frames: "
-                      << "run=" << run_acc / (double)kReportInterval / 1000.0 << "ms, "
-                      << "output=" << out_acc / (double)kReportInterval / 1000.0 << "ms"
-                      << std::endl;
-            run_acc = 0;
-            out_acc = 0;
-        }
+        task.promise.set_value({std::move(outputs), infer_us});
     }
 }

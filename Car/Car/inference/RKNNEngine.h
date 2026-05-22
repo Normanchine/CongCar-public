@@ -9,6 +9,7 @@
 #include <queue>
 #include <string>
 #include <thread>
+#include <utility>
 
 // 单NPU上下文 + 内部worker线程，提供异步 submit/get 流水线
 class RKNNEngine {
@@ -22,11 +23,14 @@ public:
     bool load(const std::string& model_path, int core_id,
               rknn_tensor_type input_type = RKNN_TENSOR_UINT8);
 
+    // 返回类型: pair<推理结果, 纯rknn_run耗时(微秒)>
+    using Result = std::pair<std::vector<cv::Mat>, int64_t>;
+
     // 异步提交，返回 future（取走输入所有权）
-    std::future<std::vector<cv::Mat>> submit(cv::Mat input);
+    std::future<Result> submit(cv::Mat input);
 
     // 同步推理
-    std::vector<cv::Mat> infer(const cv::Mat& input) {
+    Result infer(const cv::Mat& input) {
         auto fut = submit(input);
         return fut.get();
     }
@@ -40,7 +44,7 @@ public:
 private:
     struct Task {
         cv::Mat input;
-        std::promise<std::vector<cv::Mat>> promise;
+        std::promise<Result> promise;
     };
 
     void workerLoop();
