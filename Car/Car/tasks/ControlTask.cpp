@@ -78,6 +78,10 @@ void ControlTask::run() {
         ctx_->perf_stats.record(SLOT_CONTROL, elapsed_us);
     }
 
+    // 退出前发送停止指令
+    uart.sendControl(0.0f, static_cast<uint16_t>(uc.pwm_neutral));
+    std::cout << "[ControlTask] 已发送停止指令" << std::endl;
+
     uart.stopReceive();
     uart.close();
     std::cout << "[ControlTask] 已退出" << std::endl;
