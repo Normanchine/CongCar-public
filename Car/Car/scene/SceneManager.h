@@ -12,14 +12,18 @@ public:
     // 切换场景：被语义分割/目标检测线程调用
     // shared_ptr + atomic_store 保证 run() 中正在执行的旧场景不会被析构
     bool switchTo(const std::string& sceneName) {
+        if (sceneName == _currentName) return true;  // 相同场景不切换
+
         auto newScene = SceneFactory::instance().create(sceneName);
         if (!newScene) {
-            std::cout << "\n  切换到：" << sceneName << " 失败" << "\n";
+            std::cout << "[SceneMgr] 切换到 " << sceneName << " 失败" << std::endl;
             return false;
         }
 
         std::atomic_store(&_currentScene, std::move(newScene));
-        std::cout << "\n  实时切换到：" << sceneName << "\n";
+        std::cout << "[SceneMgr] 场景切换: " << _currentName
+                  << " → " << sceneName << std::endl;
+        _currentName = sceneName;
         return true;
     }
 
@@ -38,4 +42,5 @@ public:
 
 private:
     std::shared_ptr<IScene> _currentScene;
+    std::string             _currentName = "NormalScene";  // 默认启动场景
 };

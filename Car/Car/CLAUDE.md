@@ -35,7 +35,7 @@ SegmentationTask:
   seg_queue → NPU(Core2) → argmax → resize原图 → seg_result.publish() → seg_cv_.notify_one()
 
 DetectionTask:
-  det_queue → NPU(Core0) → YOLO decode+NMS → det_result.publish() + scene切换
+  det_queue → NPU(Core0) → YOLO decode+NMS → det_result.publish() + scene切换(仅变化时)
 
 DisplayTask:
   display_queue(原始帧) + seg_result.get() + det_result.get() → 叠加 → imshow
