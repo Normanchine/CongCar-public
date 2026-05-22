@@ -226,7 +226,16 @@ int main(int argc, char* argv[]) {
     cv::Mat input = preprocess(bgr, mw, mh);
     auto t_pre_end = std::chrono::steady_clock::now();
 
-    // 4. 推理
+    // 4. 首帧预热 (NPU 内部初始化，不计时)
+    std::cout << "预热中..." << std::endl;
+    {
+        std::vector<cv::Mat> warm_outputs;
+        int64_t warm_us = 0;
+        infer(ctx, input, warm_outputs, &warm_us, output_attrs, n_outputs);
+        std::cout << "  warmup: " << (warm_us / 1000.0f) << " ms" << std::endl;
+    }
+
+    // 5. 正式推理
     std::cout << "推理中..." << std::endl;
     int64_t run_us = 0;
     auto t_infer_start = std::chrono::steady_clock::now();
@@ -237,7 +246,7 @@ int main(int argc, char* argv[]) {
     }
     auto t_infer_end = std::chrono::steady_clock::now();
 
-    // 5. 后处理
+    // 6. 后处理
     auto t_post_start = std::chrono::steady_clock::now();
     cv::Mat mask = postprocess(outputs, orig_w, orig_h, mw, mh);
     auto t_post_end = std::chrono::steady_clock::now();
@@ -248,12 +257,12 @@ int main(int argc, char* argv[]) {
     std::cout << "赛道像素: " << track_px << "/" << total_px
               << " (" << (100.0f * track_px / total_px) << "%)" << std::endl;
 
-    // 6. 可视化
+    // 7. 可视化
     auto t_viz_start = std::chrono::steady_clock::now();
     cv::Mat result = visualize(bgr, mask);
     auto t_viz_end = std::chrono::steady_clock::now();
 
-    // 7. 保存
+    // 8. 保存
     std::string out_name = std::string(image_path);
     size_t dot = out_name.find_last_of('.');
     out_name = (dot == std::string::npos)
@@ -263,7 +272,7 @@ int main(int argc, char* argv[]) {
     cv::imwrite(out_name, result);
     std::cout << "结果已保存: " << out_name << std::endl;
 
-    // 8. 释放
+    // 9. 释放
     rknn_destroy(ctx);
 
     auto t_total_end = std::chrono::steady_clock::now();
