@@ -38,7 +38,7 @@ DetectionTask:
   det_queue → NPU(Core0) → YOLO decode+NMS → det_result.publish() + scene切换(仅变化时)
 
 DisplayTask:
-  display_queue(原始帧) + seg_result.get() + det_result.get() → 叠加 → imshow
+  display_queue(原始帧) + seg + det → 叠加 + HUD(场景/PWM/速度/FPS) + PIP(鸟瞰图中线/前视点) → imshow
 
 ControlTask:
   cv.wait_for(50ms) ← 被 SegTask notify 唤醒，或超时兜底

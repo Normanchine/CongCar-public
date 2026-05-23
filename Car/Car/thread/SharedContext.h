@@ -58,6 +58,13 @@ struct SharedContext {
     SharedResult<SegResult> seg_result;
     SharedResult<DetResult> det_result;
 
+    // ---- 鸟瞰图中线调试数据（NormalScene写，DisplayTask读） ----
+    std::mutex               bird_mtx_;
+    cv::Mat                  bird_mask_;
+    std::vector<cv::Point2f> bird_centers_;
+    cv::Point2f              bird_aim_pt_{0, 0};
+    bool                     bird_valid_ = false;
+
     // ---- 控制输出 ----
     std::atomic<float> steering_pwm{3840};   // 舵机PWM (3000-4700, 中值3840)
     std::atomic<float> target_speed{0};      // 目标速度

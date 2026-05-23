@@ -52,4 +52,13 @@ void NormalScene::run(SharedContext* ctx) {
 
     ctx->steering_pwm.store(pwm);
     ctx->target_speed.store(ctrl.max_speed);
+
+    // ---- 7. 保存鸟瞰图中线数据（供 DisplayTask PIP 显示） ----
+    {
+        std::lock_guard<std::mutex> lock(ctx->bird_mtx_);
+        ctx->bird_mask_    = mask.clone();
+        ctx->bird_centers_ = centers;
+        ctx->bird_aim_pt_  = aim_pt;
+        ctx->bird_valid_   = true;
+    }
 }

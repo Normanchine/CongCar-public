@@ -40,6 +40,8 @@ public:
         return std::atomic_load(&_currentScene);
     }
 
+    const std::string& currentName() const { return _currentName; }
+
 private:
     std::shared_ptr<IScene> _currentScene;
     std::string             _currentName = "NormalScene";  // 默认启动场景
