@@ -18,6 +18,21 @@ static constexpr uint8_t FRAME_LEN_MIN   = 4;
 static constexpr uint8_t FRAME_LEN_MAX   = 12;
 static constexpr uint8_t RX_BUF_SIZE     = 64;
 
+// ---- 波特率映射 ----
+static speed_t baudToSpeed(int baud) {
+    switch (baud) {
+        case 9600:    return B9600;
+        case 19200:   return B19200;
+        case 38400:   return B38400;
+        case 57600:   return B57600;
+        case 115200:  return B115200;
+        case 230400:  return B230400;
+        case 460800:  return B460800;
+        case 921600:  return B921600;
+        default:      return B115200;
+    }
+}
+
 // ---- 辅助：校验和 ----
 static uint8_t checksum(const uint8_t* data, uint8_t len) {
     uint8_t chk = 0;
@@ -39,10 +54,20 @@ bool UartIO::open(const std::string& port, int baud) {
     }
 
     struct termios opts;
-    tcgetattr(fd_, &opts);
+    if (tcgetattr(fd_, &opts) < 0) {
+        std::cerr << "[UartIO] tcgetattr 失败" << std::endl;
+        ::close(fd_);
+        fd_ = -1;
+        return false;
+    }
 
-    cfsetispeed(&opts, baud);
-    cfsetospeed(&opts, baud);
+    speed_t speed = baudToSpeed(baud);
+    if (cfsetispeed(&opts, speed) < 0 || cfsetospeed(&opts, speed) < 0) {
+        std::cerr << "[UartIO] 波特率设置失败" << std::endl;
+        ::close(fd_);
+        fd_ = -1;
+        return false;
+    }
 
     opts.c_cflag &= ~PARENB;  // 无校验
     opts.c_cflag &= ~CSTOPB;  // 1 停止位
@@ -56,9 +81,14 @@ bool UartIO::open(const std::string& port, int baud) {
     opts.c_oflag &= ~OPOST;
 
     opts.c_cc[VMIN]  = 0;
-    opts.c_cc[VTIME] = 5;     // 50ms 超时
+    opts.c_cc[VTIME] = 5;     // 0.5s 超时
 
-    tcsetattr(fd_, TCSANOW, &opts);
+    if (tcsetattr(fd_, TCSANOW, &opts) < 0) {
+        std::cerr << "[UartIO] tcsetattr 失败" << std::endl;
+        ::close(fd_);
+        fd_ = -1;
+        return false;
+    }
     tcflush(fd_, TCIOFLUSH);
 
     std::cout << "[UartIO] 已打开 " << port << " @" << baud << std::endl;
@@ -76,7 +106,7 @@ void UartIO::close() {
 void UartIO::sendControl(float speed, uint16_t pwm) {
     if (fd_ < 0) return;
 
-    uint8_t buf[11];
+    uint8_t buf[10];
     buf[0] = FRAME_HEAD;
     buf[1] = ADDR_CARCTRL;
     buf[2] = CTRL_FRAME_LEN;
@@ -93,7 +123,10 @@ void UartIO::sendControl(float speed, uint16_t pwm) {
 
     buf[9] = checksum(buf, 9);
 
-    ::write(fd_, buf, 10);
+    ssize_t written = ::write(fd_, buf, 10);
+    if (written != 10) {
+        std::cerr << "[UartIO] sendControl write 失败: " << written << std::endl;
+    }
 }
 
 void UartIO::sendBuzzer(uint8_t sound) {
@@ -106,7 +139,10 @@ void UartIO::sendBuzzer(uint8_t sound) {
     buf[3] = sound;
     buf[4] = checksum(buf, 4);
 
-    ::write(fd_, buf, 5);
+    ssize_t written = ::write(fd_, buf, 5);
+    if (written != 5) {
+        std::cerr << "[UartIO] sendBuzzer write 失败: " << written << std::endl;
+    }
 }
 
 void UartIO::startReceive() {
