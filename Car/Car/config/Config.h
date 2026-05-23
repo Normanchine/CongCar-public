@@ -9,9 +9,9 @@ struct ControlConfig {
     float aim_dist_near = 0.35f;       // 近前视距离 (m)
 
     // ---- PWM ----
-    float pwm_mid = 3840.0f;           // PWM 中值
-    float pwm_min = 3000.0f;           // PWM 下限
-    float pwm_max = 4700.0f;           // PWM 上限
+    float pwm_mid = 1500.0f;           // PWM 中值
+    float pwm_min = 500.0f;            // PWM 下限
+    float pwm_max = 2500.0f;           // PWM 上限
     float pwm_k   = 30.0f;             // 误差 → PWM 缩放
 
     // ---- PID ----
@@ -48,7 +48,7 @@ struct CalibConfig {
 struct UartConfig {
     std::string port        = "/dev/ttyUSB0";
     int         baud        = 115200;
-    float       pwm_neutral = 3840.0f;
+    float       pwm_neutral = 1500.0f;
 };
 
 struct AppConfig {

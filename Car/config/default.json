@@ -7,9 +7,9 @@
     "car_length": 0.316,
     "car_cy_ratio": 0.95,
     "aim_dist_near": 0.35,
-    "pwm_mid": 3840.0,
-    "pwm_min": 3000.0,
-    "pwm_max": 4700.0,
+    "pwm_mid": 1500.0,
+    "pwm_min": 500.0,
+    "pwm_max": 2500.0,
     "pwm_k": 30.0,
     "max_speed": 0.0,
     "pid_p": 0.0,
@@ -39,6 +39,6 @@
   "uart": {
     "port": "/dev/ttyUSB0",
     "baud": 115200,
-    "pwm_neutral": 3840.0
+    "pwm_neutral": 1500.0
   }
 }
