@@ -54,7 +54,7 @@ void NormalScene::run(SharedContext* ctx) {
     ctx->target_speed.store(ctrl.max_speed);
 
     // ---- 7. 保存鸟瞰图中线数据（供 DisplayTask PIP 显示） ----
-    {
+    if (ctx->config.debug_mode) {
         std::lock_guard<std::mutex> lock(ctx->bird_mtx_);
         ctx->bird_mask_    = mask.clone();
         ctx->bird_centers_ = centers;

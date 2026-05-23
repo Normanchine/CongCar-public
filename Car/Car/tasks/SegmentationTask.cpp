@@ -68,8 +68,6 @@ void SegmentationTask::run() {
             int orig_w = ctx_->frame_width.load(std::memory_order_acquire);
             int orig_h = ctx_->frame_height.load(std::memory_order_acquire);
 
-            auto tp0 = std::chrono::steady_clock::now();
-
             // argmax: output shape (2, seg_n) CV_32FC1 — ch0=背景, ch1=赛道
             const cv::Mat& out = outputs[0];
             const float* ch0 = out.ptr<float>(0);
@@ -80,12 +78,8 @@ void SegmentationTask::run() {
                 mask.data[i] = (ch0[i] >= ch1[i]) ? 0 : 1;
             }
 
-            auto tp1 = std::chrono::steady_clock::now();
-
             cv::Mat mask_resized;
             cv::resize(mask, mask_resized, cv::Size(orig_w, orig_h), 0, 0, cv::INTER_NEAREST);
-
-            auto tp2 = std::chrono::steady_clock::now();
 
             SegResult result;
             result.mask      = std::move(mask_resized);
@@ -94,13 +88,6 @@ void SegmentationTask::run() {
             result.frame_id  = ++frame_counter;
             ctx_->seg_result.publish(std::move(result));
             ctx_->seg_cv_.notify_one();  // 唤醒 ControlTask
-
-            auto tp3 = std::chrono::steady_clock::now();
-            auto argmax_us = std::chrono::duration_cast<std::chrono::microseconds>(tp1 - tp0).count();
-            auto resize_us = std::chrono::duration_cast<std::chrono::microseconds>(tp2 - tp1).count();
-            auto pub_us    = std::chrono::duration_cast<std::chrono::microseconds>(tp3 - tp2).count();
-            std::cout << "[SegPost] argmax=" << argmax_us << "us  resize=" << resize_us
-                      << "us  publish=" << pub_us << std::endl;
         }
 
         auto t_end = std::chrono::steady_clock::now();

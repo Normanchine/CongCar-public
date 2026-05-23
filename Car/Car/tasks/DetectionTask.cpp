@@ -73,8 +73,6 @@ void DetectionTask::run() {
             int n_out = static_cast<int>(outputs.size());
             int ppb = n_out / yolo::NUM_BRANCHES;
 
-            auto tp0 = std::chrono::steady_clock::now();
-
             for (int b = 0; b < yolo::NUM_BRANCHES; ++b) {
                 const cv::Mat& box_t = outputs[b * ppb];
                 const cv::Mat& cls_t = outputs[b * ppb + 1];
@@ -95,11 +93,7 @@ void DetectionTask::run() {
                 all_raw.insert(all_raw.end(), raw.begin(), raw.end());
             }
 
-            auto tp1 = std::chrono::steady_clock::now();
-
             auto boxes = yolo::nms_boxes(all_raw, ai.nms_threshold);
-
-            auto tp2 = std::chrono::steady_clock::now();
 
             DetResult result;
             result.boxes    = std::move(boxes);
@@ -123,12 +117,6 @@ void DetectionTask::run() {
                 ctx_->scene_manager.switchTo("NormalScene");
             }
 
-            auto tp3 = std::chrono::steady_clock::now();
-            auto dfl_us  = std::chrono::duration_cast<std::chrono::microseconds>(tp1 - tp0).count();
-            auto nms_us  = std::chrono::duration_cast<std::chrono::microseconds>(tp2 - tp1).count();
-            auto pub_us  = std::chrono::duration_cast<std::chrono::microseconds>(tp3 - tp2).count();
-            std::cout << "[Post] decode=" << dfl_us << "us  nms=" << nms_us
-                      << "us  publish=" << pub_us << "us  raw=" << all_raw.size() << std::endl;
         }
 
         auto t_end = std::chrono::steady_clock::now();
