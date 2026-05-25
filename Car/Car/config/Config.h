@@ -1,6 +1,13 @@
 #pragma once
 
 #include <string>
+#include <map>
+
+struct SceneControlParams {
+    float max_speed = 1.0f;
+    float pid_p     = 0.0f;
+    float pid_d     = 0.0f;
+};
 
 struct ControlConfig {
     // ---- 物理参数 ----
@@ -14,11 +21,8 @@ struct ControlConfig {
     float pwm_max = 2500.0f;           // PWM 上限
     float pwm_k   = 30.0f;             // 误差 → PWM 缩放
 
-    // ---- PID ----
-    float max_speed = 0.0f;            // 车速限制
-    float pid_p = 0.0f;
-    float pid_i = 0.0f;
-    float pid_d = 0.0f;
+    // ---- 场景参数 ----
+    std::map<std::string, SceneControlParams> scene;
 };
 
 struct AIConfig {

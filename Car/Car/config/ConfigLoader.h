@@ -7,12 +7,43 @@
 
 using json = nlohmann::json;
 
-// ---- nlohmann 反序列化（NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE） ----
+// ---- SceneControlParams 序列化 ----
 
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(ControlConfig,
-    car_length, car_cy_ratio, aim_dist_near,
-    pwm_mid, pwm_min, pwm_max, pwm_k,
-    max_speed, pid_p, pid_i, pid_d)
+inline void to_json(json& j, const SceneControlParams& s) {
+    j = json{ {"max_speed", s.max_speed}, {"pid_p", s.pid_p}, {"pid_d", s.pid_d} };
+}
+
+inline void from_json(const json& j, SceneControlParams& s) {
+    j.at("max_speed").get_to(s.max_speed);
+    j.at("pid_p").get_to(s.pid_p);
+    j.at("pid_d").get_to(s.pid_d);
+}
+
+// ---- ControlConfig 序列化 ----
+
+inline void to_json(json& j, const ControlConfig& c) {
+    j = json{
+        {"car_length",    c.car_length},
+        {"car_cy_ratio",  c.car_cy_ratio},
+        {"aim_dist_near", c.aim_dist_near},
+        {"pwm_mid",       c.pwm_mid},
+        {"pwm_min",       c.pwm_min},
+        {"pwm_max",       c.pwm_max},
+        {"pwm_k",         c.pwm_k},
+        {"scene",         c.scene}
+    };
+}
+
+inline void from_json(const json& j, ControlConfig& c) {
+    j.at("car_length").get_to(c.car_length);
+    j.at("car_cy_ratio").get_to(c.car_cy_ratio);
+    j.at("aim_dist_near").get_to(c.aim_dist_near);
+    j.at("pwm_mid").get_to(c.pwm_mid);
+    j.at("pwm_min").get_to(c.pwm_min);
+    j.at("pwm_max").get_to(c.pwm_max);
+    j.at("pwm_k").get_to(c.pwm_k);
+    if (j.contains("scene")) j.at("scene").get_to(c.scene);
+}
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(AIConfig,
     confidence_threshold, nms_threshold,

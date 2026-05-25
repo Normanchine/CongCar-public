@@ -26,6 +26,7 @@ void NormalScene::run(SharedContext* ctx) {
     }
 
     const auto& ctrl = ctx->config.control;
+    const auto& sp = ctrl.scene.at("NormalScene");
 
     // ---- 2. 车底中心 ----
     float cx = w * 0.5f;
@@ -44,14 +45,14 @@ void NormalScene::run(SharedContext* ctx) {
     float derivative = error - last_error_;
     last_error_ = error;
 
-    float output = ctrl.pid_p * error + ctrl.pid_d * derivative;
+    float output = sp.pid_p * error + sp.pid_d * derivative;
 
     // ---- 6. PWM + 限幅 ----
     float pwm = ctrl.pwm_mid - output * ctrl.pwm_k;
     pwm = std::clamp(pwm, ctrl.pwm_min, ctrl.pwm_max);
 
     ctx->steering_pwm.store(pwm);
-    ctx->target_speed.store(ctrl.max_speed);
+    ctx->target_speed.store(sp.max_speed);
 
     // ---- 7. 保存鸟瞰图中线数据（供 DisplayTask PIP 显示） ----
     if (ctx->config.debug_mode) {
