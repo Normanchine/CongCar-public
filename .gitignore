@@ -11,6 +11,9 @@ __pycache__/
 .vscode/
 compile_commands.json
 
+# AI辅助开发 (不纳入版本控制)
+.trae/
+
 # 模型文件 (体积大，单独管理)
 *.rknn
 *.pth
@@ -23,7 +26,7 @@ car.md
 infer_test.txt
 seg_test.txt
 上位机模板.md
-
+Car/Car/CLAUDE.md
 # 系统
 .DS_Store
 Thumbs.db

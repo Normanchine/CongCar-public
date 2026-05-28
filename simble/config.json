@@ -1,0 +1,16 @@
+{
+  "shm_name": "shm_ar_video",
+  "shm_size": 10485760,
+  "model_path": "/home/orangepi/Desktop/new/seg/build/model/pplite_seg.rknn",
+  "segmentation_input_w": 256,
+  "segmentation_input_h": 128,
+  "car_length": 0.316,
+  "car_cy_ratio": 0.95,
+  "aim_dist_near": 0.35,
+  "calib": {
+    "src_quad": [0, 0, 0, 0, 0, 0, 0, 0],
+    "bird_width": 640,
+    "bird_height": 480,
+    "ppm": 222.22
+  }
+}
