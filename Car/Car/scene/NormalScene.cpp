@@ -14,7 +14,8 @@ void NormalScene::run(SharedContext* ctx) {
     // ---- 0. 透视变换到鸟瞰 ----
     cv::Mat mask = ctx->perspective.warp(seg->mask);
     int w = mask.cols, h = mask.rows;
-    float ppm = ctx->config.calib.ppm;
+    float ppm_x = ctx->config.calib.ppm_x;
+    float ppm_y = ctx->config.calib.ppm_y;
 
     // ---- 1. 中线提取 ----
     std::vector<cv::Point2f> centers;
@@ -33,13 +34,12 @@ void NormalScene::run(SharedContext* ctx) {
     float cy = h * ctrl.car_cy_ratio;
 
     // ---- 3. 纯跟踪前视点 ----
-    float aim_px = ctrl.aim_dist_near * ppm;
     cv::Point2f aim_pt;
-    if (!pathplan::findLookAhead(centers, cx, cy, aim_px, aim_pt)) return;
+    if (!pathplan::findLookAhead(centers, cx, cy, ctrl.aim_dist_near, ppm_x, ppm_y, aim_pt)) return;
 
-    // ---- 4. 航向误差（鸟瞰空间 ppm 全局一致） ----
+    // ---- 4. 航向误差（鸟瞰空间 ppm_x/ppm_y 分别转换） ----
     float error = pathplan::headingError(cx, cy, aim_pt.x, aim_pt.y,
-                                          ctrl.car_length, ppm);
+                                          ctrl.car_length, ppm_x, ppm_y);
 
     // ---- 5. PD 控制 ----
     float derivative = error - last_error_;
