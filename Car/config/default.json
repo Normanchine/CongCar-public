@@ -10,12 +10,12 @@
     "pwm_mid": 1500.0,
     "pwm_min": 500.0,
     "pwm_max": 2500.0,
-    "pwm_k": 30.0,
+    "pwm_k": 1200.0,   //38°对应的是1515  pwm_k = 1000 / 0.66 ≈ 1515
     "scene": {
       "NormalScene": {
-        "max_speed": 1.5,
-        "pid_p": 2.5,
-        "pid_d": 0.5
+        "max_speed": 0.2,
+        "pid_p": 1.5,
+        "pid_d": 0.3
       }
     }
   },
