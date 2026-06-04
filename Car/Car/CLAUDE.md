@@ -105,3 +105,16 @@ python tools/calibrate_perspective.py 图片路径 config/default.json
 ```
 
 选四角点 → 输出尺寸 → 物理尺寸 → 预览鸟瞰 → 写入 calib 段。
+
+## 项目开发规范
+
+项目规范文件位于 `.claude/rules/` 目录下，按需读取（不要一次性全部加载）：
+
+| 当你需要... | 读取这个文件 |
+|------------|-------------|
+| 了解项目全貌、入口、依赖 | [.claude/rules/项目认知报告.md](../.claude/rules/项目认知报告.md) |
+| 设计模块架构、新增模块 | [.claude/rules/项目架构规范.md](../.claude/rules/项目架构规范.md) |
+| 写代码、命名、注释 | [.claude/rules/编码规范.md](../.claude/rules/编码规范.md) |
+| 提交代码、分支管理、构建 | [.claude/rules/开发流程规范.md](../.claude/rules/开发流程规范.md) |
+| 写测试、检查清单 | [.claude/rules/测试规范.md](../.claude/rules/测试规范.md) |
+| 查看所有规范概览 | [.claude/规范总索引.md](../.claude/规范总索引.md) |

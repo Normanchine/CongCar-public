@@ -43,7 +43,9 @@ struct SimbleConfig {
     float src_quad[8] = {0};
     int bird_width = 640;
     int bird_height = 480;
-    float ppm = 222.22f;
+    float ppm_x = 0.0f;  // X方向像素/米
+    float ppm_y = 0.0f;  // Y方向像素/米
+    float ppm = 222.22f; // 已废弃，仅用于向后兼容
 };
 
 // 从JSON文件加载配置
@@ -73,7 +75,15 @@ static bool loadConfig(const std::string& path, SimbleConfig& cfg) {
             }
             if (calib.contains("bird_width")) cfg.bird_width = calib["bird_width"];
             if (calib.contains("bird_height")) cfg.bird_height = calib["bird_height"];
-            if (calib.contains("ppm")) cfg.ppm = calib["ppm"];
+            // 优先读取 ppm_x 和 ppm_y
+            if (calib.contains("ppm_x")) cfg.ppm_x = calib["ppm_x"];
+            if (calib.contains("ppm_y")) cfg.ppm_y = calib["ppm_y"];
+            // 向后兼容：如果只有 ppm，则 ppm_x = ppm_y = ppm
+            if (calib.contains("ppm") && cfg.ppm_x == 0.0f && cfg.ppm_y == 0.0f) {
+                cfg.ppm = calib["ppm"];
+                cfg.ppm_x = cfg.ppm;
+                cfg.ppm_y = cfg.ppm;
+            }
         }
         return true;
     } catch (const std::exception& e) {
@@ -368,7 +378,9 @@ int main(int argc, char* argv[]) {
     std::cout << "共享内存: " << cfg.shm_name << " (" << cfg.shm_size << " bytes)" << std::endl;
     std::cout << "模型路径: " << cfg.model_path << std::endl;
     std::cout << "模型输入: " << cfg.segmentation_input_w << "x" << cfg.segmentation_input_h << std::endl;
-    std::cout << "鸟瞰尺寸: " << cfg.bird_width << "x" << cfg.bird_height << ", PPM=" << cfg.ppm << std::endl;
+    std::cout << "鸟瞰尺寸: " << cfg.bird_width << "x" << cfg.bird_height << std::endl;
+    std::cout << "PPM_X (水平): " << cfg.ppm_x << " px/m" << std::endl;
+    std::cout << "PPM_Y (垂直): " << cfg.ppm_y << " px/m" << std::endl;
     std::cout << "车参数: 长度=" << cfg.car_length << "m, 车底y比例=" << cfg.car_cy_ratio << std::endl;
     std::cout << "前视距离: " << cfg.aim_dist_near << "m" << std::endl;
 
@@ -492,20 +504,23 @@ int main(int argc, char* argv[]) {
 
         // ---- 路径规划 ----
         std::vector<cv::Point2f> centers;
-        pathplan::extractCenterline(bird_mask, centers);
+        // 启用滑动平均滤波，窗口大小=5（可调整：3-7 推荐）
+        // use_median=false 使用滑动平均，true 使用中值滤波
+        pathplan::extractCenterline(bird_mask, centers, 5, false);
 
         cv::Point2f aim_pt;
         bool has_aim = false;
         float heading_error = 0.0f;
         float cx = static_cast<float>(bird_w) * 0.5f;
         float cy = static_cast<float>(bird_h) * cfg.car_cy_ratio;
-        float aim_px = cfg.aim_dist_near * cfg.ppm;
 
         if (!centers.empty()) {
-            has_aim = pathplan::findLookAhead(centers, cx, cy, aim_px, aim_pt);
+            // findLookAhead 现在接收实际距离（米），内部会根据 ppm_x/ppm_y 转换
+            has_aim = pathplan::findLookAhead(centers, cx, cy, cfg.aim_dist_near,
+                                               cfg.ppm_x, cfg.ppm_y, aim_pt);
             if (has_aim) {
                 heading_error = pathplan::headingError(cx, cy, aim_pt.x, aim_pt.y,
-                                                       cfg.car_length, cfg.ppm);
+                                                       cfg.car_length, cfg.ppm_x, cfg.ppm_y);
             }
         }
 

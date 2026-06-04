@@ -13,6 +13,7 @@ compile_commands.json
 
 # AI辅助开发 (不纳入版本控制)
 .trae/
+.claude/
 
 # 模型文件 (体积大，单独管理)
 *.rknn
@@ -27,6 +28,8 @@ infer_test.txt
 seg_test.txt
 上位机模板.md
 Car/Car/CLAUDE.md
+result/
+simble/滤波使用说明.md
 # 系统
 .DS_Store
 Thumbs.db

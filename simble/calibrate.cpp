@@ -178,7 +178,7 @@ static bool pickPoints(const cv::Mat& image, std::vector<cv::Point2f>& out_pts) 
 }
 
 static bool getBirdParams(int img_w, int img_h,
-                           int& bird_w, int& bird_h, float& ppm) {
+                           int& bird_w, int& bird_h, float& ppm_x, float& ppm_y) {
     std::cout << "\n图片原始尺寸: " << img_w << " x " << img_h << std::endl;
 
     std::cout << "鸟瞰图宽度 (推荐 640): ";
@@ -201,13 +201,15 @@ static bool getBirdParams(int img_w, int img_h,
     std::getline(std::cin, buf_rh);
     float rh = buf_rh.empty() ? 2.0f : std::stof(buf_rh);
 
-    ppm = std::round(((bird_w / rw) + (bird_h / rh)) / 2.0f * 100.0f) / 100.0f;
+    // 分别计算 X 和 Y 方向的 PPM
+    ppm_x = std::round(bird_w / rw * 100.0f) / 100.0f;  // 水平方向
+    ppm_y = std::round(bird_h / rh * 100.0f) / 100.0f;  // 垂直方向
     return true;
 }
 
 static bool preview(const cv::Mat& image,
                     const std::vector<cv::Point2f>& src_pts,
-                    int bird_w, int bird_h, float ppm) {
+                    int bird_w, int bird_h, float ppm_x, float ppm_y) {
     std::vector<cv::Point2f> dst_pts = {
         cv::Point2f(0, 0),
         cv::Point2f(static_cast<float>(bird_w - 1), 0),
@@ -219,7 +221,8 @@ static bool preview(const cv::Mat& image,
     cv::Mat bird_view;
     cv::warpPerspective(image, bird_view, M, cv::Size(bird_w, bird_h));
 
-    std::cout << "\nPPM = " << ppm << " px/m" << std::endl;
+    std::cout << "\nPPM_X (水平) = " << ppm_x << " px/m" << std::endl;
+    std::cout << "PPM_Y (垂直) = " << ppm_y << " px/m" << std::endl;
 
     cv::Mat src_scaled;
     cv::resize(image, src_scaled, cv::Size(bird_w, bird_h));
@@ -237,7 +240,7 @@ static bool preview(const cv::Mat& image,
 
 static void saveConfig(const std::string& config_path,
                        const std::vector<cv::Point2f>& src_pts,
-                       int bird_w, int bird_h, float ppm) {
+                       int bird_w, int bird_h, float ppm_x, float ppm_y) {
     if (config_path.empty()) {
         std::cout << "\n未指定配置文件，跳过写入" << std::endl;
         std::cout << "\n================== 标定结果（手动填写） ==================" << std::endl;
@@ -250,7 +253,8 @@ static void saveConfig(const std::string& config_path,
         std::cout << "]," << std::endl;
         std::cout << "  \"bird_width\": " << bird_w << "," << std::endl;
         std::cout << "  \"bird_height\": " << bird_h << "," << std::endl;
-        std::cout << "  \"ppm\": " << ppm << std::endl;
+        std::cout << "  \"ppm_x\": " << ppm_x << "," << std::endl;
+        std::cout << "  \"ppm_y\": " << ppm_y << std::endl;
         std::cout << "}" << std::endl;
         return;
     }
@@ -275,7 +279,8 @@ static void saveConfig(const std::string& config_path,
     calib["src_quad"] = src_quad;
     calib["bird_width"] = bird_w;
     calib["bird_height"] = bird_h;
-    calib["ppm"] = ppm;
+    calib["ppm_x"] = ppm_x;
+    calib["ppm_y"] = ppm_y;
     config["calib"] = calib;
 
     // 保留共享内存配置
@@ -382,23 +387,23 @@ int main(int argc, char* argv[]) {
 
     std::vector<cv::Point2f> src_pts;
     int bird_w = 640, bird_h = 480;
-    float ppm = 0.0f;
+    float ppm_x = 0.0f, ppm_y = 0.0f;
 
     while (true) {
         if (!pickPoints(image, src_pts)) {
             return 1;
         }
 
-        if (!getBirdParams(img_w, img_h, bird_w, bird_h, ppm)) {
+        if (!getBirdParams(img_w, img_h, bird_w, bird_h, ppm_x, ppm_y)) {
             return 1;
         }
 
-        if (preview(image, src_pts, bird_w, bird_h, ppm)) {
+        if (preview(image, src_pts, bird_w, bird_h, ppm_x, ppm_y)) {
             break;
         }
     }
 
-    saveConfig(config_path, src_pts, bird_w, bird_h, ppm);
+    saveConfig(config_path, src_pts, bird_w, bird_h, ppm_x, ppm_y);
 
     std::vector<cv::Point2f> dst_pts = {
         cv::Point2f(0, 0),
