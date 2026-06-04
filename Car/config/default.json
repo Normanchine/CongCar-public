@@ -37,8 +37,7 @@
     "bird_width": 640,
     "bird_height": 480,
     "ppm_x": 0.0,
-    "ppm_y": 0.0,
-    "ppm": 222.22
+    "ppm_y": 0.0
   },
 
   "uart": {

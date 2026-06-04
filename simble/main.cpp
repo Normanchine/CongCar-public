@@ -45,7 +45,6 @@ struct SimbleConfig {
     int bird_height = 480;
     float ppm_x = 0.0f;  // X方向像素/米
     float ppm_y = 0.0f;  // Y方向像素/米
-    float ppm = 222.22f; // 已废弃，仅用于向后兼容
 };
 
 // 从JSON文件加载配置
@@ -75,15 +74,8 @@ static bool loadConfig(const std::string& path, SimbleConfig& cfg) {
             }
             if (calib.contains("bird_width")) cfg.bird_width = calib["bird_width"];
             if (calib.contains("bird_height")) cfg.bird_height = calib["bird_height"];
-            // 优先读取 ppm_x 和 ppm_y
             if (calib.contains("ppm_x")) cfg.ppm_x = calib["ppm_x"];
             if (calib.contains("ppm_y")) cfg.ppm_y = calib["ppm_y"];
-            // 向后兼容：如果只有 ppm，则 ppm_x = ppm_y = ppm
-            if (calib.contains("ppm") && cfg.ppm_x == 0.0f && cfg.ppm_y == 0.0f) {
-                cfg.ppm = calib["ppm"];
-                cfg.ppm_x = cfg.ppm;
-                cfg.ppm_y = cfg.ppm;
-            }
         }
         return true;
     } catch (const std::exception& e) {

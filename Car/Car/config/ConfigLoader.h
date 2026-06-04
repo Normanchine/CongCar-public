@@ -61,8 +61,7 @@ inline void to_json(json& j, const CalibConfig& c) {
         {"bird_width",  c.bird_width},
         {"bird_height", c.bird_height},
         {"ppm_x",       c.ppm_x},
-        {"ppm_y",       c.ppm_y},
-        {"ppm",         c.ppm}
+        {"ppm_y",       c.ppm_y}
     };
 }
 
@@ -72,19 +71,8 @@ inline void from_json(const json& j, CalibConfig& c) {
         c.src_quad[i] = arr[i];
     j.at("bird_width").get_to(c.bird_width);
     j.at("bird_height").get_to(c.bird_height);
-    
-    // 优先读取 ppm_x 和 ppm_y
-    if (j.contains("ppm_x")) j.at("ppm_x").get_to(c.ppm_x);
-    if (j.contains("ppm_y")) j.at("ppm_y").get_to(c.ppm_y);
-    
-    // 向后兼容：如果只有 ppm，则 ppm_x = ppm_y = ppm
-    if (j.contains("ppm")) {
-        j.at("ppm").get_to(c.ppm);
-        if (c.ppm_x == 0.0f && c.ppm_y == 0.0f) {
-            c.ppm_x = c.ppm;
-            c.ppm_y = c.ppm;
-        }
-    }
+    j.at("ppm_x").get_to(c.ppm_x);
+    j.at("ppm_y").get_to(c.ppm_y);
 }
 
 inline void to_json(json& j, const AppConfig& c) {
