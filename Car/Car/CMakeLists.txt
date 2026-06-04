@@ -30,3 +30,14 @@ target_link_libraries(car
     Threads::Threads
     rknnrt
 )
+
+# ============================================================================
+# 标定工具 (car_calib)
+# ============================================================================
+add_executable(car_calib
+    ../tools/calibrate.cpp
+)
+
+target_link_libraries(car_calib
+    ${OpenCV_LIBS}
+)

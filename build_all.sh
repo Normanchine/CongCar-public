@@ -25,7 +25,9 @@ mkdir -p build
 cd build
 cmake ../Car -DCMAKE_BUILD_TYPE="$BUILD_TYPE"
 make -j$(nproc)
-echo "[OK] Car 构建完成: $SCRIPT_DIR/Car/build/car"
+echo "[OK] Car 构建完成:"
+echo "     - $SCRIPT_DIR/Car/build/car"
+echo "     - $SCRIPT_DIR/Car/build/car_calib"
 
 # ---- 2. 构建 seg_test ----
 echo ""
@@ -56,13 +58,14 @@ echo "  全部构建完成!"
 echo "========================================"
 echo "可执行文件:"
 echo "  Car/build/car              - 智能车主程序"
+echo "  Car/build/car_calib        - 透视变换标定工具"
 echo "  seg/build/seg_test         - 语义分割测试"
 echo "  simble/build/simble_test   - 巡线一体化测试"
 echo "  simble/build/simble_calib  - 透视变换标定"
 echo ""
 echo "运行脚本:"
 echo "  ./run_car.sh [配置文件]           - 运行Car主程序"
-echo "  ./run_calibrate.sh <图片> [配置]  - Car透视变换标定(Python版)"
+echo "  ./run_calibrate.sh [选项]         - Car透视变换标定(C++版)"
 echo "  ./run_seg.sh <图片> [模型]        - 语义分割测试"
 echo "  ./run_simble_test.sh [配置文件]   - 巡线一体化测试"
-echo "  ./run_simble_calib.sh <图片> [配置] - 透视变换标定(C++版)"
+echo "  ./run_simble_calib.sh [选项]      - 透视变换标定(C++版)"

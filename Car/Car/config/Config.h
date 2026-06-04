@@ -46,7 +46,9 @@ struct CalibConfig {
     float src_quad[8] = {0};           // 透视源四点
     int   bird_width  = 640;
     int   bird_height = 480;
-    float ppm         = 222.22f;       // 鸟瞰像素/米
+    float ppm_x       = 0.0f;          // X方向像素/米
+    float ppm_y       = 0.0f;          // Y方向像素/米
+    float ppm         = 222.22f;       // 已废弃，仅用于向后兼容
 };
 
 struct UartConfig {
