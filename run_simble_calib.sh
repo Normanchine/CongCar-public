@@ -19,6 +19,7 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BUILD_DIR="$SCRIPT_DIR/simble/build"
 EXECUTABLE="$BUILD_DIR/simble_calib"
+DEFAULT_CONFIG="$SCRIPT_DIR/simble/config.json"
 
 # 检查是否已构建
 if [ ! -f "$EXECUTABLE" ]; then
@@ -45,10 +46,11 @@ to_abs_path() {
 if [ -z "$1" ]; then
     # 无参数：从共享内存读取
     echo "[模式] 从共享内存读取实时帧"
+    echo "配置输出: $DEFAULT_CONFIG"
     echo "提示: 请确保 Python 视频推流服务已启动"
     echo "----------------------------------------"
     cd "$BUILD_DIR"
-    "$EXECUTABLE"
+    "$EXECUTABLE" "$DEFAULT_CONFIG"
 
 elif [ -n "$1" ] && [ -z "$2" ]; then
     # 一个参数
@@ -66,9 +68,10 @@ elif [ -n "$1" ] && [ -z "$2" ]; then
         ABS_IMAGE=$(to_abs_path "$1")
         echo "[模式] 从图片文件读取"
         echo "图片: $ABS_IMAGE"
+        echo "配置输出: $DEFAULT_CONFIG"
         echo "----------------------------------------"
         cd "$BUILD_DIR"
-        "$EXECUTABLE" "$ABS_IMAGE"
+        "$EXECUTABLE" "$ABS_IMAGE" "$DEFAULT_CONFIG"
     fi
 
 else

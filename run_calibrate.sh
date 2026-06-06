@@ -31,9 +31,10 @@ echo "----------------------------------------"
 if [ -z "$1" ]; then
     # 无参数：从共享内存读取实时帧
     echo "[模式] 从共享内存读取实时帧"
+    echo "配置输出: $DEFAULT_CONFIG"
     echo "[提示] 请确保 Python 视频推流服务已启动"
     echo ""
-    "$EXECUTABLE"
+    "$EXECUTABLE" "$DEFAULT_CONFIG"
 elif [ "$#" -eq 1 ]; then
     # 一个参数：判断是图片还是配置文件
     if [[ "$1" == *.json ]] || [[ "$1" == *.JSON ]]; then
