@@ -24,6 +24,7 @@ target_link_libraries(simble_test
     nlohmann_json::nlohmann_json
     rknnrt
     rt          # POSIX shm_open
+    pthread     # HTTP推流服务器线程
 )
 
 # ===================================================

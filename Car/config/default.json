@@ -10,7 +10,7 @@
     "pwm_mid": 1500.0,
     "pwm_min": 500.0,
     "pwm_max": 2500.0,
-    "pwm_k": 1200.0,   //38°对应的是1515  pwm_k = 1000 / 0.66 ≈ 1515
+    "pwm_k": 1200.0,   
     "scene": {
       "NormalScene": {
         "max_speed": 0.2,
@@ -44,5 +44,11 @@
     "port": "/dev/ttyUSB0",
     "baud": 115200,
     "pwm_neutral": 1500.0
+  },
+
+  "http_stream": {
+    "port": 5001,
+    "jpeg_quality": 80,
+    "enable": true
   }
 }

@@ -1,12 +1,14 @@
 //
 // simble_test — 语义分割 + 路径规划一体化测试程序
-// 功能: 共享内存读帧 → NPU语义分割 → 透视变换 → 中线提取 → 纯跟踪 → 实时显示
-// 去除了: 目标检测、上下位机通信、PWM控制
+// 功能: 共享内存读帧 → NPU语义分割 → 透视变换 → 中线提取 → 纯跟踪 → HTTP推流
+// 去除了: 目标检测、上下位机通信、PWM控制、本地显示
+// 新增: HTTP MJPEG推流，支持浏览器远程查看
 //
 
 #include "rknn_api.h"
 #include "PathPlanning.h"
 #include "PerspectiveMapper.h"
+#include "HttpStreamServer.h"
 #include <opencv2/core/mat.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
@@ -15,6 +17,7 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <csignal>
 #include <chrono>
 #include <cstdint>
 #include <cstring>
@@ -45,6 +48,10 @@ struct SimbleConfig {
     int bird_height = 480;
     float ppm_x = 0.0f;  // X方向像素/米
     float ppm_y = 0.0f;  // Y方向像素/米
+    // HTTP推流参数
+    int http_port = 5001;           // HTTP服务器端口
+    int jpeg_quality = 80;          // JPEG编码质量（1-100）
+    bool enable_http_stream = true; // 是否启用HTTP推流
 };
 
 // 从JSON文件加载配置
@@ -76,6 +83,13 @@ static bool loadConfig(const std::string& path, SimbleConfig& cfg) {
             if (calib.contains("bird_height")) cfg.bird_height = calib["bird_height"];
             if (calib.contains("ppm_x")) cfg.ppm_x = calib["ppm_x"];
             if (calib.contains("ppm_y")) cfg.ppm_y = calib["ppm_y"];
+        }
+        // 读取HTTP推流配置
+        if (j.contains("http_stream")) {
+            auto http = j["http_stream"];
+            if (http.contains("port")) cfg.http_port = http["port"];
+            if (http.contains("jpeg_quality")) cfg.jpeg_quality = http["jpeg_quality"];
+            if (http.contains("enable")) cfg.enable_http_stream = http["enable"];
         }
         return true;
     } catch (const std::exception& e) {
@@ -339,9 +353,24 @@ void drawHUD(cv::Mat& frame, uint64_t frame_id, int n_centers,
 } // anonymous namespace
 
 // ============================================================================
+// 全局变量 — 信号处理
+// ============================================================================
+std::atomic<bool> g_running(true);
+
+// 信号处理函数（Ctrl+C退出）
+void signalHandler(int signum) {
+    std::cout << "\n\n[信号] 接收到退出信号，正在停止..." << std::endl;
+    g_running.store(false);
+}
+
+// ============================================================================
 // 主函数 — 流程控制
 // ============================================================================
 int main(int argc, char* argv[]) {
+    // 注册信号处理
+    signal(SIGINT, signalHandler);
+    signal(SIGTERM, signalHandler);
+
     const char* config_path = (argc > 1) ? argv[1] : "config.json";
     std::cout << "= simble_test: 语义分割 + 路径规划一体化测试 =" << std::endl;
     std::cout << "配置文件: " << config_path << std::endl;
@@ -375,6 +404,11 @@ int main(int argc, char* argv[]) {
     std::cout << "PPM_Y (垂直): " << cfg.ppm_y << " px/m" << std::endl;
     std::cout << "车参数: 长度=" << cfg.car_length << "m, 车底y比例=" << cfg.car_cy_ratio << std::endl;
     std::cout << "前视距离: " << cfg.aim_dist_near << "m" << std::endl;
+    std::cout << "HTTP推流: " << (cfg.enable_http_stream ? "启用" : "禁用") << std::endl;
+    if (cfg.enable_http_stream) {
+        std::cout << "HTTP端口: " << cfg.http_port << std::endl;
+        std::cout << "JPEG质量: " << cfg.jpeg_quality << std::endl;
+    }
 
     // ===================================================
     // 2. 初始化透视变换
@@ -418,10 +452,19 @@ int main(int argc, char* argv[]) {
     }
 
     // ===================================================
-    // 5. 创建显示窗口
+    // 5. 启动HTTP推流服务器
     // ===================================================
-    const char* windowName = "simble: segmentation + path planning";
-    cv::namedWindow(windowName, cv::WINDOW_AUTOSIZE);
+    HttpStreamServer* http_server = nullptr;
+    if (cfg.enable_http_stream) {
+        http_server = new HttpStreamServer(cfg.http_port, cfg.jpeg_quality);
+        if (!http_server->start()) {
+            std::cerr << "[HTTP] 服务器启动失败" << std::endl;
+            delete http_server;
+            http_server = nullptr;
+        } else {
+            std::cout << "\n[HTTP] 浏览器访问地址: http://<开发板IP>:" << cfg.http_port << std::endl;
+        }
+    }
 
     // ===================================================
     // 6. 主循环
@@ -430,9 +473,9 @@ int main(int argc, char* argv[]) {
     uint64_t last_fid = 0;
     float fps = 0.0f;
 
-    std::cout << "\n=== 开始循环，ESC退出 ===" << std::endl;
+    std::cout << "\n=== 开始循环，Ctrl+C退出 ===" << std::endl;
 
-    while (true) {
+    while (g_running.load()) {
         auto t_start = std::chrono::steady_clock::now();
 
         // ---- 读取header ----
@@ -554,21 +597,19 @@ int main(int argc, char* argv[]) {
         drawHUD(top, frame_counter, static_cast<int>(centers.size()),
                 heading_error, fps, seg_ms);
 
-        // ---- 显示 ----
-        cv::imshow(windowName, top);
-
-        // ---- 按键处理 ----
-        int key = cv::waitKey(1);
-        if (key == 27) {  // ESC退出
-            std::cout << "\n\nESC按下，退出" << std::endl;
-            break;
+        // ---- HTTP推流 ----
+        if (http_server && http_server->isRunning()) {
+            http_server->pushFrame(top);
         }
     }
 
     // ===================================================
     // 7. 清理退出
     // ===================================================
-    cv::destroyWindow(windowName);
+    if (http_server) {
+        http_server->stop();
+        delete http_server;
+    }
     shm.close();
     rknn_destroy(rknn_ctx);
 

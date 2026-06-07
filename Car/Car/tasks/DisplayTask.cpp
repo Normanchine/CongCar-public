@@ -11,6 +11,7 @@
 #include <sstream>
 #include <thread>
 #include <iomanip>
+
 REGISTER_THREAD_TASK(DisplayTask)
 
 DisplayTask::DisplayTask(SharedContext* ctx) : IThreadTask(ctx) {}
@@ -117,8 +118,23 @@ void drawPIP(cv::Mat& frame, SharedContext* ctx) {
 } // namespace
 
 void DisplayTask::run() {
-    const char* kWindowName = "Car";
-    cv::namedWindow(kWindowName, cv::WINDOW_AUTOSIZE);
+    // 启动HTTP推流服务器
+    if (ctx_->config.http_stream.enable) {
+        http_server_ = std::make_unique<HttpStreamServer>(
+            ctx_->config.http_stream.port,
+            ctx_->config.http_stream.jpeg_quality
+        );
+        
+        if (http_server_->start()) {
+            std::cout << "[DisplayTask] HTTP推流服务器启动，端口: " 
+                      << ctx_->config.http_stream.port << std::endl;
+            std::cout << "[DisplayTask] 浏览器访问: http://<开发板IP>:" 
+                      << ctx_->config.http_stream.port << std::endl;
+        } else {
+            std::cerr << "[DisplayTask] HTTP推流服务器启动失败" << std::endl;
+            http_server_.reset();
+        }
+    }
 
     while (!ctx_->stop.load(std::memory_order_acquire)) {
 
@@ -143,7 +159,10 @@ void DisplayTask::run() {
             drawHUD(frame, ctx_);
             drawPIP(frame, ctx_);
 
-            cv::imshow(kWindowName, frame);
+            // 4. HTTP推流（替换imshow）
+            if (http_server_ && http_server_->isRunning()) {
+                http_server_->pushFrame(frame);
+            }
 
             auto t_end = std::chrono::steady_clock::now();
             auto elapsed_us = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -152,13 +171,13 @@ void DisplayTask::run() {
         } else {
             std::this_thread::sleep_for(std::chrono::microseconds(500));
         }
-
-        int key = cv::waitKey(1);
-        if (key == 27) {
-            ctx_->stop.store(true, std::memory_order_release);
-        }
     }
 
-    cv::destroyWindow(kWindowName);
+    // 停止HTTP服务器
+    if (http_server_) {
+        http_server_->stop();
+        http_server_.reset();
+    }
+
     std::cout << "[DisplayTask] 已退出" << std::endl;
 }

@@ -13,5 +13,10 @@
     "bird_height": 480,
     "ppm_x": 0.0,
     "ppm_y": 0.0
+  },
+  "http_stream": {
+    "port": 5001,
+    "jpeg_quality": 80,
+    "enable": true
   }
 }

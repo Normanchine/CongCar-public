@@ -29,6 +29,7 @@ target_link_libraries(car
     ${OpenCV_LIBS}
     Threads::Threads
     rknnrt
+    rt
 )
 
 # ============================================================================

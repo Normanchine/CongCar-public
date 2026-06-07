@@ -54,6 +54,9 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(AIConfig,
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(UartConfig,
     port, baud, pwm_neutral)
 
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(HttpStreamConfig,
+    port, jpeg_quality, enable)
+
 inline void to_json(json& j, const CalibConfig& c) {
     j = json {
         {"src_quad",    {c.src_quad[0],c.src_quad[1],c.src_quad[2],c.src_quad[3],
@@ -83,7 +86,8 @@ inline void to_json(json& j, const AppConfig& c) {
         {"control",    c.control},
         {"ai",         c.ai},
         {"calib",      c.calib},
-        {"uart",       c.uart}
+        {"uart",       c.uart},
+        {"http_stream", c.http_stream}
     };
 }
 
@@ -95,6 +99,7 @@ inline void from_json(const json& j, AppConfig& c) {
     if (j.contains("ai"))     j.at("ai").get_to(c.ai);
     if (j.contains("calib"))  j.at("calib").get_to(c.calib);
     if (j.contains("uart"))   j.at("uart").get_to(c.uart);
+    if (j.contains("http_stream")) j.at("http_stream").get_to(c.http_stream);
 }
 
 // ---- 加载函数 ----

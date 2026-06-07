@@ -56,13 +56,20 @@ struct UartConfig {
     float       pwm_neutral = 1500.0f;
 };
 
+struct HttpStreamConfig {
+    int  port         = 5001;     // HTTP服务器端口
+    int  jpeg_quality = 80;       // JPEG编码质量（1-100）
+    bool enable       = true;     // 是否启用HTTP推流
+};
+
 struct AppConfig {
     bool        debug_mode = true;
     std::string shm_name   = "shm_ar_video";
     size_t      shm_size   = 10 * 1024 * 1024;  // 10MB
 
-    ControlConfig control;
-    AIConfig      ai;
-    CalibConfig   calib;
-    UartConfig    uart;
+    ControlConfig   control;
+    AIConfig        ai;
+    CalibConfig     calib;
+    UartConfig      uart;
+    HttpStreamConfig http_stream;
 };
