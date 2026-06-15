@@ -5,129 +5,132 @@
 #include <algorithm>
 #include <cmath>
 #include <vector>
-#include <numeric>
+#include <iostream>
 #include <opencv2/core/types.hpp>
 #include <opencv2/core/mat.hpp>
 #include <opencv2/imgproc.hpp>
 
 namespace pathplan {
 
-// ---- 滑动平均滤波器（用于中线点平滑） ----
-inline void movingAverageFilter(std::vector<cv::Point2f>& points, int window_size = 5) {
-    if (points.size() < static_cast<size_t>(window_size) || window_size < 3) {
-        return;  // 点数太少，不滤波
-    }
-    
-    std::vector<cv::Point2f> filtered;
-    filtered.reserve(points.size());
-    
-    int half_win = window_size / 2;
-    for (size_t i = 0; i < points.size(); ++i) {
-        float sum_x = 0.0f, sum_y = 0.0f;
-        int count = 0;
-        
-        // 滑动窗口
-        for (int j = std::max(0, static_cast<int>(i) - half_win);
-             j <= std::min(static_cast<int>(points.size()) - 1, static_cast<int>(i) + half_win);
-             ++j) {
-            sum_x += points[j].x;
-            sum_y += points[j].y;
-            ++count;
-        }
-        
-        filtered.emplace_back(sum_x / count, sum_y / count);
-    }
-    
-    points = std::move(filtered);
-}
-
-// ---- 中值滤波器（去除野点） ----
-inline void medianFilter(std::vector<cv::Point2f>& points, int window_size = 5) {
-    if (points.size() < static_cast<size_t>(window_size) || window_size < 3) {
-        return;
-    }
-    
-    std::vector<cv::Point2f> filtered;
-    filtered.reserve(points.size());
-    
-    int half_win = window_size / 2;
-    for (size_t i = 0; i < points.size(); ++i) {
-        std::vector<float> x_vals, y_vals;
-        x_vals.reserve(window_size);
-        y_vals.reserve(window_size);
-        
-        for (int j = std::max(0, static_cast<int>(i) - half_win);
-             j <= std::min(static_cast<int>(points.size()) - 1, static_cast<int>(i) + half_win);
-             ++j) {
-            x_vals.push_back(points[j].x);
-            y_vals.push_back(points[j].y);
-        }
-        
-        // 排序取中值
-        std::sort(x_vals.begin(), x_vals.end());
-        std::sort(y_vals.begin(), y_vals.end());
-        
-        filtered.emplace_back(x_vals[x_vals.size() / 2], y_vals[y_vals.size() / 2]);
-    }
-    
-    points = std::move(filtered);
-}
-
-// ---- 误差滑动平均（用于 PD 控制输入） ----
-inline float smoothError(float new_error, float prev_smooth_error, float alpha = 0.3f) {
-    // 一阶低通滤波：y[n] = α * x[n] + (1-α) * y[n-1]
-    // alpha 越小，滤波效果越强，但延迟越大
-    return alpha * new_error + (1.0f - alpha) * prev_smooth_error;
-}
-
-// ---- 误差滑动平均（窗口版） ----
-inline float movingAverageError(const std::vector<float>& error_history) {
-    if (error_history.empty()) return 0.0f;
-    
-    float sum = std::accumulate(error_history.begin(), error_history.end(), 0.0f);
-    return sum / error_history.size();
-}
-
-// ---- 逐行扫描中线（从左/右找白色像素，取中点） ----
-// 可选滤波参数：window_size=0 不滤波，>0 应用滤波
-inline void extractCenterline(const cv::Mat& mask,
-                               std::vector<cv::Point2f>& out,
-                               int filter_window = 5,
-                               bool use_median = false) {
+// ---- 逐行扫描中线（纵向赛道：从左/右找白色像素，取中点） ----
+inline void extractCenterlineVertical(const cv::Mat& mask,
+                                      std::vector<cv::Point2f>& out) {
     int w = mask.cols, h = mask.rows;
     out.clear();
     out.reserve(h);
 
-    // ---- 1. 逐行扫描提取原始中线 ----
     for (int r = 0; r < h; ++r) {
         const uint8_t* row = mask.ptr<uint8_t>(r);
 
         int left = -1, right = -1;
         for (int c = 0; c < w; ++c) {
-            if (row[c] == 1) { left = c; break; }
+            if (row[c] > 0) { left = c; break; }
         }
         if (left < 0) continue;
 
         for (int c = w - 1; c >= left; --c) {
-            if (row[c] == 1) { right = c; break; }
+            if (row[c] > 0) { right = c; break; }
         }
         if (right < 0) continue;
 
         out.emplace_back((left + right) * 0.5f, static_cast<float>(r));
     }
-    
-    // ---- 2. 可选：中值滤波去野点 ----
-    if (use_median && filter_window >= 3) {
-        medianFilter(out, filter_window);
-    }
-    // ---- 3. 可选：滑动平均平滑 ----
-    else if (filter_window >= 3) {
-        movingAverageFilter(out, filter_window);
+}
+
+// ---- 逐列扫描中线（横向赛道：从上/下找白色像素，取中点） ----
+inline void extractCenterlineHorizontal(const cv::Mat& mask,
+                                        std::vector<cv::Point2f>& out,
+                                        int turn_dir) {
+    int w = mask.cols, h = mask.rows;
+    out.clear();
+    out.reserve(w);
+
+    // turn_dir == 1 (向右转): 从左向右构建，纯跟踪在右侧找前视点
+    // turn_dir == -1 (向左转): 从右向左构建，纯跟踪在左侧找前视点
+    int start_c = (turn_dir == 1) ? 0 : w - 1;
+    int end_c   = (turn_dir == 1) ? w : -1;
+    int step    = (turn_dir == 1) ? 1 : -1;
+
+    for (int c = start_c; c != end_c; c += step) {
+        int top = -1, bottom = -1;
+        for (int r = 0; r < h; ++r) {
+            if (mask.ptr<uint8_t>(r)[c] > 0) { top = r; break; }
+        }
+        if (top < 0) continue;
+
+        for (int r = h - 1; r >= top; --r) {
+            if (mask.ptr<uint8_t>(r)[c] > 0) { bottom = r; break; }
+        }
+        if (bottom < 0) continue;
+
+        out.emplace_back(static_cast<float>(c), (top + bottom) * 0.5f);
     }
 }
 
+// ---- 综合中线提取：基于图像矩自动判断赛道走向 ----
+inline void extractCenterline(const cv::Mat& mask,
+                              std::vector<cv::Point2f>& out,
+                              int turn_dir = 1) {
+    cv::Moments m = cv::moments(mask, true);
+
+    // 面积太小，返回空
+    if (m.m00 < 100) {
+        out.clear();
+        return;
+    }
+
+    // 计算赛道主轴倾角
+    double mu20 = m.mu20 / m.m00;
+    double mu02 = m.mu02 / m.m00;
+    double mu11 = m.mu11 / m.m00;
+
+    // theta 范围 -pi/2 到 pi/2
+    double theta = 0.5 * std::atan2(2.0 * mu11, mu20 - mu02);
+    double angle_deg = std::abs(theta * 180.0 / CV_PI);
+
+    // 夹角 > 45° → 横向赛道（垂直发车）
+    if (angle_deg > 45.0) {
+        extractCenterlineHorizontal(mask, out, turn_dir);
+    } else {
+        extractCenterlineVertical(mask, out);
+    }
+}
+
+// ---- 滑动平均滤波（只平滑中线偏移方向，保留原始扫描行/列坐标） ----
+inline void smoothCenterline(std::vector<cv::Point2f>& centers, int window_size = 5) {
+    if (centers.size() < static_cast<size_t>(window_size)) return;
+
+    // 判断是横向还是纵向中线：X跨度 > Y跨度 → 横向
+    bool is_horizontal = false;
+    if (std::abs(centers[0].x - centers.back().x) >
+        std::abs(centers[0].y - centers.back().y)) {
+        is_horizontal = true;
+    }
+
+    std::vector<cv::Point2f> smoothed;
+    smoothed.reserve(centers.size());
+    int half_w = window_size / 2;
+
+    for (int i = 0; i < static_cast<int>(centers.size()); ++i) {
+        float sum = 0.0f;
+        int count = 0;
+        for (int j = std::max(0, i - half_w);
+             j <= std::min(static_cast<int>(centers.size()) - 1, i + half_w); ++j) {
+            sum += is_horizontal ? centers[j].y : centers[j].x;
+            count++;
+        }
+        if (is_horizontal) {
+            smoothed.emplace_back(centers[i].x, sum / count);  // 保留原始列号，平滑y
+        } else {
+            smoothed.emplace_back(sum / count, centers[i].y);  // 保留原始行号，平滑x
+        }
+    }
+    centers = std::move(smoothed);
+}
+
 // ---- 纯跟踪：沿中线找距离车底 aim_dist_m 米的前视点 ----
-// 注意：aim_dist_m 是实际距离（米），函数内部会根据 ppm_x/ppm_y 转换
+// 起点为中线最近点（而非车底中心），弧长累加更准确
+// ppm_x/ppm_y 分离转换，适应非正方形像素
 inline bool findLookAhead(const std::vector<cv::Point2f>& centers,
                            float cx, float cy,
                            float aim_dist_m,
@@ -135,22 +138,22 @@ inline bool findLookAhead(const std::vector<cv::Point2f>& centers,
                            cv::Point2f& out) {
     if (centers.empty()) return false;
 
-    // 找到离车底中心最近的点作为起点
+    // 找到离车底中心最近的中线点作为弧长起点
     int best_i = 0;
     float best_d = 1e9f;
     for (int i = 0; i < static_cast<int>(centers.size()); ++i) {
-        float dy = (centers[i].y - cy) / ppm_y;  // 转为米
-        float dx = (centers[i].x - cx) / ppm_x;  // 转为米
+        float dy = centers[i].y - cy;
+        float dx = centers[i].x - cx;
         float d  = dx * dx + dy * dy;
         if (d < best_d) { best_d = d; best_i = i; }
     }
 
-    // 沿中线累加距离，直到达到前视距离
+    // 从最近点沿中线累加距离（米）
     float accum = 0.0f;
-    cv::Point2f prev = {cx, cy};
-    for (int i = best_i; i < static_cast<int>(centers.size()); ++i) {
-        float dy = (centers[i].y - prev.y) / ppm_y;  // 转为米
-        float dx = (centers[i].x - prev.x) / ppm_x;  // 转为米
+    cv::Point2f prev = centers[best_i];
+    for (int i = best_i + 1; i < static_cast<int>(centers.size()); ++i) {
+        float dy = (centers[i].y - prev.y) / ppm_y;
+        float dx = (centers[i].x - prev.x) / ppm_x;
         accum += std::sqrt(dx * dx + dy * dy);
         if (accum >= aim_dist_m) {
             out = centers[i];
@@ -168,8 +171,8 @@ inline bool findLookAhead(const std::vector<cv::Point2f>& centers,
 inline float headingError(float cx, float cy, float ax, float ay,
                            float car_len, float ppm_x, float ppm_y) {
     // 将像素坐标转换为米
-    float dx = (ax - cx) / ppm_x;  // X方向：像素 → 米
-    float dy = (cy - ay) / ppm_y + car_len;  // Y方向：像素 → 米 + 车长
+    float dx = (ax - cx) / ppm_x;           // X方向：像素 → 米
+    float dy = (cy - ay) / ppm_y + car_len; // Y方向：像素 → 米 + 车长
     float dn = dx * dx + dy * dy;
     if (dn < 1e-6f) return 0.0f;
     return -std::atan(2.0f * car_len * dx / dn);

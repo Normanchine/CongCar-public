@@ -18,7 +18,7 @@ make -j8
 所有工作在线程任务中执行，继承 `IThreadTask`（只有 `run()` 纯虚函数），通过 `REGISTER_THREAD_TASK` 宏注册。共享状态集中在 `SharedContext`。
 
 **生产线程**: CaptureTask(共享内存采集+预处理) → SegmentationTask(NPU语义分割) → DetectionTask(NPU YOLO检测) → ControlTask(场景执行+串口下发)
-**仅调试**: DisplayTask(取显示帧 → 画分割覆盖+检测框 → imshow)
+**仅调试**: DisplayTask(取显示帧 → 画分割覆盖+检测框 → HTTP MJPEG推流)
 
 通信: `FrameQueue<T>` 环形缓冲传帧；`SharedResult<T>` atomic shared_ptr 双缓冲传AI结果。
 SegTask 产出新分割结果后通过 `condition_variable` 唤醒 ControlTask。
@@ -38,7 +38,7 @@ DetectionTask:
   det_queue → NPU(Core0) → YOLO decode+NMS → det_result.publish() + scene切换(仅变化时)
 
 DisplayTask:
-  display_queue(原始帧) + seg + det → 叠加 + HUD(场景/PWM/速度/FPS) + PIP(鸟瞰图中线/前视点) → imshow
+  display_queue(原始帧) + seg + det → 叠加 + HUD(场景/PWM/速度/FPS) + PIP(鸟瞰图中线/前视点) → HTTP MJPEG推流
 
 ControlTask:
   cv.wait_for(50ms) ← 被 SegTask notify 唤醒，或超时兜底

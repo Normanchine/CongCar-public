@@ -21,6 +21,16 @@ struct ControlConfig {
     float pwm_max = 2500.0f;           // PWM 上限
     float pwm_k   = 30.0f;             // 误差 → PWM 缩放
 
+    // ---- 动态前视 ----
+    float lookahead_speed_k = 0.15f;   // 动态前视系数: aim = near + speed * k
+
+    // ---- 丢线容错 ----
+    int   max_lost_frames   = 5;       // 最大盲开帧数
+    float coast_speed_decay = 0.9f;    // 盲开每帧速度衰减系数
+
+    // ---- 赛道搜索 ----
+    int track_search_turn_dir = 1;     // 横向赛道默认入轨转向: 1=右, -1=左
+
     // ---- 场景参数 ----
     std::map<std::string, SceneControlParams> scene;
 };

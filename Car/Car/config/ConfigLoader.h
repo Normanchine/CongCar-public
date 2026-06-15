@@ -23,14 +23,18 @@ inline void from_json(const json& j, SceneControlParams& s) {
 
 inline void to_json(json& j, const ControlConfig& c) {
     j = json{
-        {"car_length",    c.car_length},
-        {"car_cy_ratio",  c.car_cy_ratio},
-        {"aim_dist_near", c.aim_dist_near},
-        {"pwm_mid",       c.pwm_mid},
-        {"pwm_min",       c.pwm_min},
-        {"pwm_max",       c.pwm_max},
-        {"pwm_k",         c.pwm_k},
-        {"scene",         c.scene}
+        {"car_length",          c.car_length},
+        {"car_cy_ratio",        c.car_cy_ratio},
+        {"aim_dist_near",       c.aim_dist_near},
+        {"pwm_mid",             c.pwm_mid},
+        {"pwm_min",             c.pwm_min},
+        {"pwm_max",             c.pwm_max},
+        {"pwm_k",               c.pwm_k},
+        {"lookahead_speed_k",   c.lookahead_speed_k},
+        {"max_lost_frames",     c.max_lost_frames},
+        {"coast_speed_decay",   c.coast_speed_decay},
+        {"track_search_turn_dir", c.track_search_turn_dir},
+        {"scene",               c.scene}
     };
 }
 
@@ -42,6 +46,10 @@ inline void from_json(const json& j, ControlConfig& c) {
     j.at("pwm_min").get_to(c.pwm_min);
     j.at("pwm_max").get_to(c.pwm_max);
     j.at("pwm_k").get_to(c.pwm_k);
+    if (j.contains("lookahead_speed_k"))   j.at("lookahead_speed_k").get_to(c.lookahead_speed_k);
+    if (j.contains("max_lost_frames"))     j.at("max_lost_frames").get_to(c.max_lost_frames);
+    if (j.contains("coast_speed_decay"))   j.at("coast_speed_decay").get_to(c.coast_speed_decay);
+    if (j.contains("track_search_turn_dir")) j.at("track_search_turn_dir").get_to(c.track_search_turn_dir);
     if (j.contains("scene")) j.at("scene").get_to(c.scene);
 }
 
