@@ -8,6 +8,7 @@
 REGISTER_SCENE(NormalScene)
 
 void NormalScene::run(SharedContext* ctx) {
+    //std::cout << "[NormalScene] 正在运行" << std::endl;
     auto seg = ctx->seg_result.get();
     if (!seg || seg->mask.empty()) return;
 
@@ -17,12 +18,19 @@ void NormalScene::run(SharedContext* ctx) {
     float ppm_x = ctx->config.calib.ppm_x;
     float ppm_y = ctx->config.calib.ppm_y;
 
+    // ---- 0.5 保存鸟瞰图mask（无论中线是否提取成功，始终保存供DisplayTask显示） ----
+    if (ctx->config.debug_mode) {
+        std::lock_guard<std::mutex> lock(ctx->bird_mtx_);
+        ctx->bird_mask_  = mask.clone();
+        ctx->bird_valid_ = true;
+    }
+
     const auto& ctrl = ctx->config.control;
     const auto& sp = ctrl.scene.at("NormalScene");
 
     // ---- 1. 中线提取与平滑 ----
     std::vector<cv::Point2f> centers;
-    pathplan::extractCenterline(mask, centers, ctrl.track_search_turn_dir);
+    pathplan::extractCenterline(mask, centers);
     pathplan::smoothCenterline(centers);
 
     // ---- 2. 丢线容错：盲开 + 速度衰减 ----
@@ -77,12 +85,10 @@ void NormalScene::run(SharedContext* ctx) {
     ctx->steering_pwm.store(pwm);
     ctx->target_speed.store(sp.max_speed);
 
-    // ---- 8. 保存鸟瞰图中线数据（供 DisplayTask PIP 显示） ----
+    // ---- 8. 更新鸟瞰图中线/前视点（mask已在步骤0.5保存） ----
     if (ctx->config.debug_mode) {
         std::lock_guard<std::mutex> lock(ctx->bird_mtx_);
-        ctx->bird_mask_    = mask.clone();
         ctx->bird_centers_ = centers;
         ctx->bird_aim_pt_  = aim_pt;
-        ctx->bird_valid_   = true;
     }
 }

@@ -42,7 +42,6 @@ struct SimbleConfig {
     float car_length = 0.316f;
     float car_cy_ratio = 0.95f;
     float aim_dist_near = 0.35f;
-    int track_search_turn_dir = 1;  // 横向赛道入轨转向
     // 标定参数
     float src_quad[8] = {0};
     int bird_width = 640;
@@ -72,7 +71,6 @@ static bool loadConfig(const std::string& path, SimbleConfig& cfg) {
         if (j.contains("car_length")) cfg.car_length = j["car_length"];
         if (j.contains("car_cy_ratio")) cfg.car_cy_ratio = j["car_cy_ratio"];
         if (j.contains("aim_dist_near")) cfg.aim_dist_near = j["aim_dist_near"];
-        if (j.contains("track_search_turn_dir")) cfg.track_search_turn_dir = j["track_search_turn_dir"];
         if (j.contains("calib")) {
             auto calib = j["calib"];
             if (calib.contains("src_quad")) {
@@ -406,7 +404,6 @@ int main(int argc, char* argv[]) {
     std::cout << "PPM_Y (垂直): " << cfg.ppm_y << " px/m" << std::endl;
     std::cout << "车参数: 长度=" << cfg.car_length << "m, 车底y比例=" << cfg.car_cy_ratio << std::endl;
     std::cout << "前视距离: " << cfg.aim_dist_near << "m" << std::endl;
-    std::cout << "横向赛道转向: " << (cfg.track_search_turn_dir == 1 ? "右" : "左") << std::endl;
     std::cout << "HTTP推流: " << (cfg.enable_http_stream ? "启用" : "禁用") << std::endl;
     if (cfg.enable_http_stream) {
         std::cout << "HTTP端口: " << cfg.http_port << std::endl;
@@ -544,7 +541,7 @@ int main(int argc, char* argv[]) {
         std::vector<cv::Point2f> centers;
         // 启用滑动平均滤波，窗口大小=5（可调整：3-7 推荐）
         // use_median=false 使用滑动平均，true 使用中值滤波
-        pathplan::extractCenterline(bird_mask, centers, cfg.track_search_turn_dir);
+        pathplan::extractCenterline(bird_mask, centers);
         pathplan::smoothCenterline(centers);
 
         cv::Point2f aim_pt;

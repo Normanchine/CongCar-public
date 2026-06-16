@@ -28,9 +28,6 @@ struct ControlConfig {
     int   max_lost_frames   = 5;       // 最大盲开帧数
     float coast_speed_decay = 0.9f;    // 盲开每帧速度衰减系数
 
-    // ---- 赛道搜索 ----
-    int track_search_turn_dir = 1;     // 横向赛道默认入轨转向: 1=右, -1=左
-
     // ---- 场景参数 ----
     std::map<std::string, SceneControlParams> scene;
 };

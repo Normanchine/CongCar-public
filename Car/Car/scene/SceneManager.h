@@ -9,6 +9,17 @@
 
 class SceneManager {
 public:
+    SceneManager() {
+        // 启动时自动创建默认场景，确保 run() 有场景可执行
+        auto scene = SceneFactory::instance().create(_currentName);
+        if (scene) {
+            std::atomic_store(&_currentScene, std::move(scene));
+            std::cout << "[SceneMgr] 初始场景: " << _currentName << std::endl;
+        } else {
+            std::cerr << "[SceneMgr] 无法创建初始场景: " << _currentName << std::endl;
+        }
+    }
+
     // 切换场景：被语义分割/目标检测线程调用
     // shared_ptr + atomic_store 保证 run() 中正在执行的旧场景不会被析构
     bool switchTo(const std::string& sceneName) {

@@ -38,7 +38,7 @@ DetectionTask:
   det_queue → NPU(Core0) → YOLO decode+NMS → det_result.publish() + scene切换(仅变化时)
 
 DisplayTask:
-  display_queue(原始帧) + seg + det → 叠加 + HUD(场景/PWM/速度/FPS) + PIP(鸟瞰图中线/前视点) → HTTP MJPEG推流
+  display_queue(原始帧) + seg + det → 左:原图+分割+检测框 | 右:鸟瞰图(赛道+中线+前视点+车底) → hconcat拼接 → HUD → HTTP MJPEG推流
 
 ControlTask:
   cv.wait_for(50ms) ← 被 SegTask notify 唤醒，或超时兜底

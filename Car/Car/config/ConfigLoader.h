@@ -33,7 +33,6 @@ inline void to_json(json& j, const ControlConfig& c) {
         {"lookahead_speed_k",   c.lookahead_speed_k},
         {"max_lost_frames",     c.max_lost_frames},
         {"coast_speed_decay",   c.coast_speed_decay},
-        {"track_search_turn_dir", c.track_search_turn_dir},
         {"scene",               c.scene}
     };
 }
@@ -49,7 +48,6 @@ inline void from_json(const json& j, ControlConfig& c) {
     if (j.contains("lookahead_speed_k"))   j.at("lookahead_speed_k").get_to(c.lookahead_speed_k);
     if (j.contains("max_lost_frames"))     j.at("max_lost_frames").get_to(c.max_lost_frames);
     if (j.contains("coast_speed_decay"))   j.at("coast_speed_decay").get_to(c.coast_speed_decay);
-    if (j.contains("track_search_turn_dir")) j.at("track_search_turn_dir").get_to(c.track_search_turn_dir);
     if (j.contains("scene")) j.at("scene").get_to(c.scene);
 }
 
