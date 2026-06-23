@@ -27,9 +27,9 @@ SegTask 产出新分割结果后通过 `condition_variable` 唤醒 ControlTask�
 
 ```
 CaptureTask:
-  ├─ segmentation_queue → UINT8, BGR→RGB + resize(160x160)     [量化模型直传]
-  ├─ detection_queue    → UINT8, BGR→RGB + resize(640x640)     [同上]
-  └─ display_queue      → 原始 BGR 帧                          [debug]
+  ├─ segmentation_queue → UINT8, RGB直传 + resize(seg_w x seg_h)   [量化模型]
+  ├─ detection_queue    → UINT8, RGB直传 + resize(det_w x det_h)   [同上]
+  └─ display_queue      → 原始 RGB 帧                               [debug]
 
 SegmentationTask:
   seg_queue → NPU(Core2) → argmax → resize原图 → seg_result.publish() → seg_cv_.notify_one()
@@ -38,7 +38,7 @@ DetectionTask:
   det_queue → NPU(Core0) → YOLO decode+NMS → det_result.publish() + scene切换(仅变化时)
 
 DisplayTask:
-  display_queue(原始帧) + seg + det → 叠加 + HUD(场景/PWM/速度/FPS) + PIP(鸟瞰图中线/前视点) → HTTP MJPEG推流
+  display_queue(原始帧) + seg + det → 左:原图+分割+检测框 | 右:鸟瞰图(赛道+中线+前视点+车底) → hconcat拼接 → HUD → HTTP MJPEG推流
 
 ControlTask:
   cv.wait_for(50ms) ← 被 SegTask notify 唤醒，或超时兜底
@@ -77,7 +77,7 @@ if (debug) launchTask("DisplayTask");
 - 新任务 .cpp 必须添加到 `CMakeLists.txt` 的 `add_executable` 中，否则静态注册不触发 → "[Car] 未注册的线程任务"
 - `hal/rknn/rknn_api.h` — 官方 SDK 头文件，禁止修改（ABI 兼容）
 - 新场景: 继承 `IScene`，`REGISTER_SCENE(Name)`，由 ControlTask 调用 `SceneManager::run(ctx)`
-- 共享内存帧格式: 16字节头(fid+w+h) + 裸RGB数据，CaptureTask 不做翻转/色域转换
+- 共享内存帧格式: 16字节头(fid+w+h) + 裸RGB数据，CaptureTask 仅做 flip(0) + resize，不做色域转换
 - **RKNN 模型类型匹配**: 量化模型 → `RKNN_TENSOR_UINT8`，浮点模型 → `RKNN_TENSOR_FLOAT32`。类型不匹配直接段错误
 - **模型尺寸从 config/engine 动态读取**，禁止硬编码。`engine.inputWidth/Height()` 或 `config.ai.segmentation/detection_input_w/h`
 - 预处理在 CaptureTask 中进行，推理任务不做预处理

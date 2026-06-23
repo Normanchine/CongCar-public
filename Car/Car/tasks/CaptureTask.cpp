@@ -91,21 +91,20 @@ void CaptureTask::run() {
 
         // ---- 4. 垂直翻转（Python 端做了 flip(0)，这里还原） ----
         cv::flip(frame, frame, 0);
+        // 注：frame保持RGB格式（共享内存原始格式），模型直接用，显示时再转BGR
 
         // ---- 5. 记录原始尺寸（供 DetectionTask 坐标映射） ----
         ctx_->frame_width.store(static_cast<int>(w), std::memory_order_release);
         ctx_->frame_height.store(static_cast<int>(h), std::memory_order_release);
 
-        // ---- 6. 预处理检测帧（BGR→RGB + 缩放到模型输入尺寸） ----
+        // ---- 6. 预处理检测帧（RGB直传，缩放到模型输入尺寸） ----
         cv::Mat det_input;
-        cv::cvtColor(frame, det_input, cv::COLOR_BGR2RGB);
-        cv::resize(det_input, det_input, cv::Size(det_w, det_h));
+        cv::resize(frame, det_input, cv::Size(det_w, det_h));
 
         // ---- 7. 入队 ----
-        // 分割预处理: BGR→RGB + resize（量化模型UINT8直传）
+        // 分割预处理: RGB直传 + resize（量化模型UINT8直传）
         cv::Mat seg_input;
-        cv::cvtColor(frame, seg_input, cv::COLOR_BGR2RGB);
-        cv::resize(seg_input, seg_input, cv::Size(seg_w, seg_h));
+        cv::resize(frame, seg_input, cv::Size(seg_w, seg_h));
         ctx_->segmentation_queue.produce(seg_input);
 
         ctx_->detection_queue.produce(det_input);       // 预处理后的检测帧

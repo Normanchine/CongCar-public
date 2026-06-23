@@ -5,10 +5,8 @@
 #include <algorithm>
 #include <cmath>
 #include <vector>
-#include <iostream>
 #include <opencv2/core/types.hpp>
 #include <opencv2/core/mat.hpp>
-#include <opencv2/imgproc.hpp>
 
 namespace pathplan {
 
@@ -37,63 +35,10 @@ inline void extractCenterlineVertical(const cv::Mat& mask,
     }
 }
 
-// ---- 逐列扫描中线（横向赛道：从上/下找白色像素，取中点） ----
-inline void extractCenterlineHorizontal(const cv::Mat& mask,
-                                        std::vector<cv::Point2f>& out,
-                                        int turn_dir) {
-    int w = mask.cols, h = mask.rows;
-    out.clear();
-    out.reserve(w);
-
-    // turn_dir == 1 (向右转): 从左向右构建，纯跟踪在右侧找前视点
-    // turn_dir == -1 (向左转): 从右向左构建，纯跟踪在左侧找前视点
-    int start_c = (turn_dir == 1) ? 0 : w - 1;
-    int end_c   = (turn_dir == 1) ? w : -1;
-    int step    = (turn_dir == 1) ? 1 : -1;
-
-    for (int c = start_c; c != end_c; c += step) {
-        int top = -1, bottom = -1;
-        for (int r = 0; r < h; ++r) {
-            if (mask.ptr<uint8_t>(r)[c] > 0) { top = r; break; }
-        }
-        if (top < 0) continue;
-
-        for (int r = h - 1; r >= top; --r) {
-            if (mask.ptr<uint8_t>(r)[c] > 0) { bottom = r; break; }
-        }
-        if (bottom < 0) continue;
-
-        out.emplace_back(static_cast<float>(c), (top + bottom) * 0.5f);
-    }
-}
-
-// ---- 综合中线提取：基于图像矩自动判断赛道走向 ----
+// ---- 中线提取：逐行扫描左右边界取中点 ----
 inline void extractCenterline(const cv::Mat& mask,
-                              std::vector<cv::Point2f>& out,
-                              int turn_dir = 1) {
-    cv::Moments m = cv::moments(mask, true);
-
-    // 面积太小，返回空
-    if (m.m00 < 100) {
-        out.clear();
-        return;
-    }
-
-    // 计算赛道主轴倾角
-    double mu20 = m.mu20 / m.m00;
-    double mu02 = m.mu02 / m.m00;
-    double mu11 = m.mu11 / m.m00;
-
-    // theta 范围 -pi/2 到 pi/2
-    double theta = 0.5 * std::atan2(2.0 * mu11, mu20 - mu02);
-    double angle_deg = std::abs(theta * 180.0 / CV_PI);
-
-    // 夹角 > 45° → 横向赛道（垂直发车）
-    if (angle_deg > 45.0) {
-        extractCenterlineHorizontal(mask, out, turn_dir);
-    } else {
-        extractCenterlineVertical(mask, out);
-    }
+                              std::vector<cv::Point2f>& out) {
+    extractCenterlineVertical(mask, out);
 }
 
 // ---- 滑动平均滤波（只平滑中线偏移方向，保留原始扫描行/列坐标） ----

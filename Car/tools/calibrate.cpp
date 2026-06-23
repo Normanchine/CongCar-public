@@ -28,7 +28,7 @@
 #include <string>
 #include <vector>
 
-using json = nlohmann::json;
+using json = nlohmann::ordered_json;
 
 constexpr size_t SHM_HEADER_SIZE = 16;  // fid + w + h
 
@@ -270,26 +270,17 @@ static void saveConfig(const std::string& config_path,
         in.close();
     }
 
-    json calib;
+    // 仅更新 calib 字段，保留配置文件其余结构和顺序不变
     json src_quad = json::array();
     for (const auto& pt : src_pts) {
         src_quad.push_back(pt.x);
         src_quad.push_back(pt.y);
     }
-    calib["src_quad"] = src_quad;
-    calib["bird_width"] = bird_w;
-    calib["bird_height"] = bird_h;
-    calib["ppm_x"] = ppm_x;
-    calib["ppm_y"] = ppm_y;
-    config["calib"] = calib;
-
-    // 保留共享内存配置
-    if (!config.contains("shm_name")) {
-        config["shm_name"] = "shm_ar_video";
-    }
-    if (!config.contains("shm_size")) {
-        config["shm_size"] = 10485760;
-    }
+    config["calib"]["src_quad"]  = src_quad;
+    config["calib"]["bird_width"]  = bird_w;
+    config["calib"]["bird_height"] = bird_h;
+    config["calib"]["ppm_x"]       = ppm_x;
+    config["calib"]["ppm_y"]       = ppm_y;
 
     std::ofstream out(config_path);
     out << config.dump(2) << std::endl;
