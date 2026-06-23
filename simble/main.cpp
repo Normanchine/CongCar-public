@@ -1,7 +1,7 @@
 //
-// simble_test — 语义分割 + 路径规划一体化测试程序
-// 功能: 共享内存读帧 → NPU语义分割 → 透视变换 → 中线提取 → 纯跟踪 → HTTP推流
-// 去除了: 目标检测、上下位机通信、PWM控制、本地显示
+// simble_test — 语义分割 + 目标检测 + 路径规划一体化测试程序
+// 功能: 共享内存读帧 → NPU语义分割 + PP-YOLOE目标检测 → 透视变换 → 中线提取 → 纯跟踪 → HTTP推流
+// 去除了: 上下位机通信、PWM控制、本地显示
 // 新增: HTTP MJPEG推流，支持浏览器远程查看
 //
 
@@ -9,6 +9,7 @@
 #include "PathPlanning.h"
 #include "PerspectiveMapper.h"
 #include "HttpStreamServer.h"
+#include "PPYoloEPostProcess.h"
 #include <opencv2/core/mat.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
@@ -38,6 +39,12 @@ struct SimbleConfig {
     std::string model_path = "/home/orangepi/Desktop/new/seg/build/model/pplite_seg.rknn";
     int segmentation_input_w = 256;
     int segmentation_input_h = 128;
+    bool enable_segmentation = true;         // 是否启用语义分割
+    // 目标检测参数（PP-YOLOE）
+    std::string detection_model_path = "";
+    float detection_score_thresh = 0.3f;   // 置信度阈值
+    float detection_nms_thresh = 0.65f;     // NMS IoU 阈值
+    bool enable_detection = false;          // 是否启用目标检测
     // 车辆物理参数（路径规划用）
     float car_length = 0.316f;
     float car_cy_ratio = 0.95f;
@@ -68,6 +75,15 @@ static bool loadConfig(const std::string& path, SimbleConfig& cfg) {
         if (j.contains("model_path")) cfg.model_path = j["model_path"];
         if (j.contains("segmentation_input_w")) cfg.segmentation_input_w = j["segmentation_input_w"];
         if (j.contains("segmentation_input_h")) cfg.segmentation_input_h = j["segmentation_input_h"];
+        if (j.contains("enable_segmentation")) cfg.enable_segmentation = j["enable_segmentation"];
+        // 读取目标检测配置
+        if (j.contains("detection")) {
+            auto det = j["detection"];
+            if (det.contains("model_path")) cfg.detection_model_path = det["model_path"];
+            if (det.contains("score_thresh")) cfg.detection_score_thresh = det["score_thresh"];
+            if (det.contains("nms_thresh")) cfg.detection_nms_thresh = det["nms_thresh"];
+            if (det.contains("enable")) cfg.enable_detection = det["enable"];
+        }
         if (j.contains("car_length")) cfg.car_length = j["car_length"];
         if (j.contains("car_cy_ratio")) cfg.car_cy_ratio = j["car_cy_ratio"];
         if (j.contains("aim_dist_near")) cfg.aim_dist_near = j["aim_dist_near"];
@@ -235,13 +251,21 @@ static bool runInference(rknn_context ctx, const cv::Mat& input,
     outputs.resize(n_outputs);
     for (uint32_t i = 0; i < n_outputs; ++i) {
         const auto& attr = output_attrs[i];
-        int rows = static_cast<int>(attr.n_dims >= 3 ? attr.dims[2] : 1);
-        int cols = static_cast<int>(attr.n_dims >= 4 ? attr.dims[3] : 1);
         if (attr.n_dims == 4) {
             int channels = static_cast<int>(attr.dims[1]);
+            int rows = static_cast<int>(attr.dims[2]);
+            int cols = static_cast<int>(attr.dims[3]);
             outputs[i] = cv::Mat(channels, rows * cols, CV_32FC1,
                                  rk_outs[i].buf).clone();
         } else if (attr.n_dims == 3) {
+            // 3D tensor: [batch, d1, d2] — 取 (d1, d2) 矩阵
+            int d1 = static_cast<int>(attr.dims[1]);
+            int d2 = static_cast<int>(attr.dims[2]);
+            outputs[i] = cv::Mat(d1, d2, CV_32FC1,
+                                 rk_outs[i].buf).clone();
+        } else if (attr.n_dims == 2) {
+            int rows = static_cast<int>(attr.dims[0]);
+            int cols = static_cast<int>(attr.dims[1]);
             outputs[i] = cv::Mat(rows, cols, CV_32FC1,
                                  rk_outs[i].buf).clone();
         } else {
@@ -316,10 +340,12 @@ void drawPathplan(cv::Mat& bird_vis,
 
 // 绘制HUD信息
 void drawHUD(cv::Mat& frame, uint64_t frame_id, int n_centers,
-             float heading_error, float fps, float seg_ms) {
+             float heading_error, float fps, float seg_ms,
+             int n_detections = 0, float det_ms = 0.0f) {
     const int x = 12;
     int y = 24;
-    cv::Rect roi(x - 8, 8, 320, 80);
+    int hud_h = (n_detections > 0 || det_ms > 0) ? 100 : 80;
+    cv::Rect roi(x - 8, 8, 320, hud_h);
     cv::Mat bg = frame(roi);
     cv::Mat dark(roi.height, roi.width, CV_8UC3, kHudBg);
     cv::addWeighted(dark, 0.55f, bg, 0.45f, 0, bg);
@@ -349,6 +375,42 @@ void drawHUD(cv::Mat& frame, uint64_t frame_id, int n_centers,
     oss << "FPS: " << fps << "  Seg: " << seg_ms << "ms";
     cv::putText(frame, oss.str(), cv::Point(x, y),
                 cv::FONT_HERSHEY_SIMPLEX, 0.5f, kHudText, 1);
+    y += 22;
+
+    if (n_detections > 0 || det_ms > 0) {
+        oss.str("");
+        oss << std::fixed << std::setprecision(1);
+        oss << "Det: " << n_detections << "个  " << det_ms << "ms";
+        cv::putText(frame, oss.str(), cv::Point(x, y),
+                    cv::FONT_HERSHEY_SIMPLEX, 0.5f, kHudText, 1);
+    }
+}
+
+// 绘制目标检测结果
+void drawDetections(cv::Mat& frame, const std::vector<ppyoloe::Detection>& detections) {
+    for (const auto& det : detections) {
+        int x1 = static_cast<int>(det.x1);
+        int y1 = static_cast<int>(det.y1);
+        int x2 = static_cast<int>(det.x2);
+        int y2 = static_cast<int>(det.y2);
+        int cls_id = det.class_id;
+
+        cv::Scalar color(ppyoloe::COLORS_BGR[cls_id % ppyoloe::NUM_CLASSES][0],
+                         ppyoloe::COLORS_BGR[cls_id % ppyoloe::NUM_CLASSES][1],
+                         ppyoloe::COLORS_BGR[cls_id % ppyoloe::NUM_CLASSES][2]);
+
+        cv::rectangle(frame, cv::Point(x1, y1), cv::Point(x2, y2), color, 2);
+
+        char label[64];
+        snprintf(label, sizeof(label), "%s %.2f", det.className(), det.score);
+        int baseline = 0;
+        cv::Size text_sz = cv::getTextSize(label, cv::FONT_HERSHEY_SIMPLEX, 0.5f, 1, &baseline);
+
+        cv::rectangle(frame, cv::Point(x1, y1 - text_sz.height - 4),
+                      cv::Point(x1 + text_sz.width + 4, y1), color, -1);
+        cv::putText(frame, label, cv::Point(x1 + 2, y1 - 2),
+                    cv::FONT_HERSHEY_SIMPLEX, 0.5f, cv::Scalar(255, 255, 255), 1);
+    }
 }
 } // anonymous namespace
 
@@ -372,7 +434,7 @@ int main(int argc, char* argv[]) {
     signal(SIGTERM, signalHandler);
 
     const char* config_path = (argc > 1) ? argv[1] : "config.json";
-    std::cout << "= simble_test: 语义分割 + 路径规划一体化测试 =" << std::endl;
+    std::cout << "= simble_test: 语义分割 + 目标检测 + 路径规划一体化测试 =" << std::endl;
     std::cout << "配置文件: " << config_path << std::endl;
 
     // ===================================================
@@ -399,6 +461,7 @@ int main(int argc, char* argv[]) {
     std::cout << "共享内存: " << cfg.shm_name << " (" << cfg.shm_size << " bytes)" << std::endl;
     std::cout << "模型路径: " << cfg.model_path << std::endl;
     std::cout << "模型输入: " << cfg.segmentation_input_w << "x" << cfg.segmentation_input_h << std::endl;
+    std::cout << "语义分割: " << (cfg.enable_segmentation ? "启用" : "禁用") << std::endl;
     std::cout << "鸟瞰尺寸: " << cfg.bird_width << "x" << cfg.bird_height << std::endl;
     std::cout << "PPM_X (水平): " << cfg.ppm_x << " px/m" << std::endl;
     std::cout << "PPM_Y (垂直): " << cfg.ppm_y << " px/m" << std::endl;
@@ -409,6 +472,12 @@ int main(int argc, char* argv[]) {
         std::cout << "HTTP端口: " << cfg.http_port << std::endl;
         std::cout << "JPEG质量: " << cfg.jpeg_quality << std::endl;
     }
+    std::cout << "目标检测: " << (cfg.enable_detection ? "启用" : "禁用") << std::endl;
+    if (cfg.enable_detection) {
+        std::cout << "检测模型: " << cfg.detection_model_path << std::endl;
+        std::cout << "置信度阈值: " << cfg.detection_score_thresh << std::endl;
+        std::cout << "NMS阈值: " << cfg.detection_nms_thresh << std::endl;
+    }
 
     // ===================================================
     // 2. 初始化透视变换
@@ -418,24 +487,58 @@ int main(int argc, char* argv[]) {
     std::cout << "\n[透视变换] 初始化完成" << std::endl;
 
     // ===================================================
-    // 3. 加载RKNN模型
+    // 3. 加载语义分割RKNN模型（NPU Core2）
     // ===================================================
     rknn_context rknn_ctx = 0;
     int model_w = 0, model_h = 0;
     uint32_t n_outputs = 0;
     std::vector<rknn_tensor_attr> output_attrs;
-    if (!loadRKNModel(cfg.model_path, &rknn_ctx, &model_w, &model_h, &n_outputs, &output_attrs)) {
-        return 1;
+    if (cfg.enable_segmentation) {
+        if (!loadRKNModel(cfg.model_path, &rknn_ctx, &model_w, &model_h, &n_outputs, &output_attrs)) {
+            std::cerr << "[分割] 模型加载失败，禁用语义分割" << std::endl;
+            cfg.enable_segmentation = false;
+        } else {
+            // 预热（NPU初始化）
+            cv::Mat warm_input(model_h, model_w, CV_8UC3);
+            warm_input.setTo(0);
+            std::vector<cv::Mat> warm_outputs;
+            int64_t warm_us = 0;
+            runInference(rknn_ctx, warm_input, warm_outputs, &warm_us, output_attrs, n_outputs);
+            std::cout << "[分割预热] " << (warm_us / 1000.0f) << " ms" << std::endl;
+        }
+    } else {
+        std::cout << "[分割] 已禁用" << std::endl;
     }
 
-    // 预热（NPU初始化）
-    {
-        cv::Mat warm_input(model_h, model_w, CV_8UC3);
-        warm_input.setTo(0);
-        std::vector<cv::Mat> warm_outputs;
-        int64_t warm_us = 0;
-        runInference(rknn_ctx, warm_input, warm_outputs, &warm_us, output_attrs, n_outputs);
-        std::cout << "[预热] " << (warm_us / 1000.0f) << " ms" << std::endl;
+    // ===================================================
+    // 3b. 加载目标检测RKNN模型（NPU Core0）
+    // ===================================================
+    rknn_context det_ctx = 0;
+    int det_model_w = 0, det_model_h = 0;
+    uint32_t det_n_outputs = 0;
+    std::vector<rknn_tensor_attr> det_output_attrs;
+    std::vector<ppyoloe::Detection> detections;
+
+    if (cfg.enable_detection && !cfg.detection_model_path.empty()) {
+        if (!loadRKNModel(cfg.detection_model_path, &det_ctx,
+                          &det_model_w, &det_model_h,
+                          &det_n_outputs, &det_output_attrs)) {
+            std::cerr << "[检测] 模型加载失败，禁用目标检测" << std::endl;
+            cfg.enable_detection = false;
+        } else {
+            // 检测模型使用 Core0（与Car程序一致，seg用Core2，det用Core0）
+            rknn_set_core_mask(det_ctx, RKNN_NPU_CORE_0);
+
+            // 预热
+            cv::Mat warm_det(det_model_h, det_model_w, CV_8UC3);
+            warm_det.setTo(0);
+            std::vector<cv::Mat> warm_det_outs;
+            int64_t warm_det_us = 0;
+            runInference(det_ctx, warm_det, warm_det_outs, &warm_det_us, det_output_attrs, det_n_outputs);
+            std::cout << "[检测预热] " << (warm_det_us / 1000.0f) << " ms" << std::endl;
+            std::cout << "[检测] 输入: " << det_model_w << "x" << det_model_h
+                      << ", 输出: " << det_n_outputs << " 个tensor" << std::endl;
+        }
     }
 
     // ===================================================
@@ -513,50 +616,93 @@ int main(int argc, char* argv[]) {
 
         // ---- 垂直翻转（与Car程序一致，Python端已flip(0)）----
         cv::flip(frame, frame, 0);
+        // 注：frame保持RGB格式（共享内存原始格式），模型直接用，仅显示/push前转BGR
 
         frame_counter++;
 
-        // ---- 预处理：BGR->RGB + resize ----
-        cv::Mat input;
-        cv::cvtColor(frame, input, cv::COLOR_BGR2RGB);
-        cv::resize(input, input, cv::Size(model_w, model_h));
+        // ---- 语义分割 ----
+        cv::Mat mask;
+        float seg_ms = 0.0f;
+        if (cfg.enable_segmentation && rknn_ctx != 0) {
+            // 预处理：frame已是RGB，直接resize
+            cv::Mat input;
+            cv::resize(frame, input, cv::Size(model_w, model_h));
 
-        // ---- NPU推理 ----
-        std::vector<cv::Mat> outputs;
-        int64_t infer_us = 0;
-        if (!runInference(rknn_ctx, input, outputs, &infer_us, output_attrs, n_outputs)) {
-            continue;
+            // NPU推理
+            std::vector<cv::Mat> outputs;
+            int64_t infer_us = 0;
+            if (!runInference(rknn_ctx, input, outputs, &infer_us, output_attrs, n_outputs)) {
+                continue;
+            }
+            seg_ms = infer_us / 1000.0f;
+
+            // 后处理：argmax得到mask
+            mask = postprocessSeg(outputs, w, h, model_w, model_h);
         }
-        float seg_ms = infer_us / 1000.0f;
 
-        // ---- 后处理：argmax得到mask ----
-        cv::Mat mask = postprocessSeg(outputs, w, h, model_w, model_h);
+        // ---- 目标检测（PP-YOLOE） ----
+        float det_ms = 0.0f;
+        if (cfg.enable_detection && det_ctx != 0) {
+            // 预处理：frame已是RGB，直接中心裁剪一半高度 + resize
+            int crop_h = static_cast<int>(h) / 2;
+            int crop_top = (static_cast<int>(h) - crop_h) / 2;
+            cv::Rect crop_rect(0, crop_top, static_cast<int>(w), crop_h);
+            cv::Mat det_input;
+            cv::resize(frame(crop_rect), det_input, cv::Size(det_model_w, det_model_h));
 
-        // ---- 透视变换 → 鸟瞰图mask ----
-        cv::Mat bird_mask = perspective.warp(mask);
-        int bird_w = bird_mask.cols;
-        int bird_h = bird_mask.rows;
+            // NPU推理
+            std::vector<cv::Mat> det_outputs;
+            int64_t det_infer_us = 0;
+            if (runInference(det_ctx, det_input, det_outputs, &det_infer_us,
+                             det_output_attrs, det_n_outputs)) {
+                det_ms = det_infer_us / 1000.0f;
 
-        // ---- 路径规划 ----
+                // 后处理
+                // det_outputs[0]: cls (12, 3360) float32
+                // det_outputs[1]: reg (3360, 4)  float32
+                if (det_outputs.size() >= 2) {
+                    detections = ppyoloe::postprocess(
+                        det_outputs[0].ptr<float>(0),  // cls_data
+                        det_outputs[1].ptr<float>(0),  // reg_data
+                        static_cast<int>(w), static_cast<int>(h),
+                        crop_h, crop_top,
+                        cfg.detection_score_thresh, cfg.detection_nms_thresh);
+                }
+            }
+        }
+
+        // ---- 透视变换 + 路径规划（仅分割启用时） ----
         std::vector<cv::Point2f> centers;
-        // 启用滑动平均滤波，窗口大小=5（可调整：3-7 推荐）
-        // use_median=false 使用滑动平均，true 使用中值滤波
-        pathplan::extractCenterline(bird_mask, centers);
-        pathplan::smoothCenterline(centers);
-
-        cv::Point2f aim_pt;
-        bool has_aim = false;
         float heading_error = 0.0f;
-        float cx = static_cast<float>(bird_w) * 0.5f;
-        float cy = static_cast<float>(bird_h) * cfg.car_cy_ratio;
+        cv::Mat bird_color;
+        if (cfg.enable_segmentation && !mask.empty()) {
+            cv::Mat bird_mask = perspective.warp(mask);
+            int bird_w = bird_mask.cols;
+            int bird_h = bird_mask.rows;
 
-        if (!centers.empty()) {
-            // findLookAhead 现在接收实际距离（米），内部会根据 ppm_x/ppm_y 转换
-            has_aim = pathplan::findLookAhead(centers, cx, cy, cfg.aim_dist_near,
-                                               cfg.ppm_x, cfg.ppm_y, aim_pt);
-            if (has_aim) {
-                heading_error = pathplan::headingError(cx, cy, aim_pt.x, aim_pt.y,
-                                                       cfg.car_length, cfg.ppm_x, cfg.ppm_y);
+            pathplan::extractCenterline(bird_mask, centers);
+            pathplan::smoothCenterline(centers);
+
+            cv::Point2f aim_pt;
+            bool has_aim = false;
+            float cx = static_cast<float>(bird_w) * 0.5f;
+            float cy = static_cast<float>(bird_h) * cfg.car_cy_ratio;
+
+            if (!centers.empty()) {
+                has_aim = pathplan::findLookAhead(centers, cx, cy, cfg.aim_dist_near,
+                                                   cfg.ppm_x, cfg.ppm_y, aim_pt);
+                if (has_aim) {
+                    heading_error = pathplan::headingError(cx, cy, aim_pt.x, aim_pt.y,
+                                                           cfg.car_length, cfg.ppm_x, cfg.ppm_y);
+                }
+            }
+
+            // 鸟瞰图可视化
+            bird_color = cv::Mat(bird_h, bird_w, CV_8UC3);
+            bird_color.setTo(cv::Scalar(30, 30, 30));
+            bird_color.setTo(cv::Scalar(0, 200, 0), bird_mask);
+            if (!centers.empty()) {
+                drawPathplan(bird_color, centers, aim_pt, cx, cy);
             }
         }
 
@@ -565,42 +711,54 @@ int main(int argc, char* argv[]) {
         float frame_ms = std::chrono::duration<float, std::milli>(t_now - t_start).count();
         fps = 1000.0f / frame_ms;
 
-        // ---- 控制台打印简要信息 ----
+        // ---- 控制台打印 ----
         std::cout << "\r[Frame " << std::setw(4) << frame_counter
-                  << "] 中线:" << std::setw(3) << static_cast<int>(centers.size())
-                  << " | 误差:" << std::fixed << std::setprecision(3) << heading_error
-                  << " | FPS:" << std::fixed << std::setprecision(1) << fps
-                  << " | Seg:" << std::fixed << std::setprecision(1) << seg_ms << "ms"
-                  << std::flush;
+                  << "] FPS:" << std::fixed << std::setprecision(1) << fps;
+        if (cfg.enable_segmentation) {
+            std::cout << " | 中线:" << std::setw(3) << static_cast<int>(centers.size())
+                      << " 误差:" << std::fixed << std::setprecision(3) << heading_error
+                      << " | Seg:" << std::fixed << std::setprecision(1) << seg_ms << "ms";
+        }
+        if (cfg.enable_detection) {
+            std::cout << " Det:" << std::setw(2) << static_cast<int>(detections.size())
+                      << "(" << std::fixed << std::setprecision(1) << det_ms << "ms)";
+        }
+        std::cout << std::flush;
 
         // ---- 可视化拼接 ----
-        // 左侧: 原图 + 分割叠加
         cv::Mat display = frame.clone();
-        drawSegOverlay(display, mask);
-
-        // 右侧: 鸟瞰图可视化
-        cv::Mat bird_color(bird_h, bird_w, CV_8UC3);
-        bird_color.setTo(cv::Scalar(30, 30, 30));
-        bird_color.setTo(cv::Scalar(0, 200, 0), bird_mask);
-        if (!centers.empty()) {
-            drawPathplan(bird_color, centers, aim_pt, cx, cy);
+        // 分割叠加（仅启用时）
+        if (cfg.enable_segmentation && !mask.empty()) {
+            drawSegOverlay(display, mask);
+        }
+        // 检测框（仅启用且有结果时）
+        if (cfg.enable_detection && !detections.empty()) {
+            drawDetections(display, detections);
         }
 
-        // 统一高度后再水平拼接
-        int target_h = display.rows;
-        if (bird_color.rows != target_h) {
-            cv::resize(bird_color, bird_color, cv::Size(
-                static_cast<int>(static_cast<float>(bird_color.cols) * target_h / bird_color.rows),
-                target_h));
-        }
         cv::Mat top;
-        cv::hconcat(display, bird_color, top);
-        drawHUD(top, frame_counter, static_cast<int>(centers.size()),
-                heading_error, fps, seg_ms);
+        if (cfg.enable_segmentation && !bird_color.empty()) {
+            // 左侧原图 + 右侧鸟瞰图，水平拼接
+            int target_h = display.rows;
+            if (bird_color.rows != target_h) {
+                cv::resize(bird_color, bird_color, cv::Size(
+                    static_cast<int>(static_cast<float>(bird_color.cols) * target_h / bird_color.rows),
+                    target_h));
+            }
+            cv::hconcat(display, bird_color, top);
+        } else {
+            // 分割禁用：直接输出原图
+            top = display;
+        }
+        drawHUD(top, frame_counter,
+                static_cast<int>(centers.size()), heading_error, fps, seg_ms,
+                static_cast<int>(detections.size()), det_ms);
 
-        // ---- HTTP推流 ----
+        // ---- HTTP推流（RGB→BGR，OpenCV JPEG编码需要BGR） ----
         if (http_server && http_server->isRunning()) {
-            http_server->pushFrame(top);
+            cv::Mat top_bgr;
+            cv::cvtColor(top, top_bgr, cv::COLOR_RGB2BGR);
+            http_server->pushFrame(top_bgr);
         }
     }
 
@@ -613,6 +771,9 @@ int main(int argc, char* argv[]) {
     }
     shm.close();
     rknn_destroy(rknn_ctx);
+    if (det_ctx != 0) {
+        rknn_destroy(det_ctx);
+    }
 
     std::cout << "[退出] 清理完成，共处理 " << frame_counter << " 帧" << std::endl;
     return 0;

@@ -187,9 +187,11 @@ void DisplayTask::run() {
             // ---- 4. HUD叠加 ----
             drawHUD(combined, ctx_);
 
-            // ---- 5. HTTP推流 ----
+            // ---- 5. HTTP推流（RGB→BGR，OpenCV JPEG编码需要BGR） ----
             if (http_server_ && http_server_->isRunning()) {
-                http_server_->pushFrame(combined);
+                cv::Mat combined_bgr;
+                cv::cvtColor(combined, combined_bgr, cv::COLOR_RGB2BGR);
+                http_server_->pushFrame(combined_bgr);
             }
 
             auto t_end = std::chrono::steady_clock::now();
