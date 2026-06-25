@@ -455,7 +455,21 @@ int main(int argc, char* argv[]) {
     signal(SIGINT, signalHandler);
     signal(SIGTERM, signalHandler);
 
-    const char* config_path = (argc > 1) ? argv[1] : "config.json";
+    // ---- 解析命令行参数 ----
+    const char* config_path = "config.json";
+    const char* image_path  = nullptr;
+    const char* output_path = nullptr;
+
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--image" || arg == "-i") {
+            if (i + 1 < argc) image_path = argv[++i];
+        } else if (arg == "--output" || arg == "-o") {
+            if (i + 1 < argc) output_path = argv[++i];
+        } else if (arg[0] != '-') {
+            config_path = argv[i];  // 位置参数: 配置文件
+        }
+    }
     std::cout << "= simble_test: 语义分割 + 目标检测 + 路径规划一体化测试 =" << std::endl;
     std::cout << "配置文件: " << config_path << std::endl;
 
@@ -571,7 +585,134 @@ int main(int argc, char* argv[]) {
     }
 
     // ===================================================
-    // 4. 打开共享内存
+    // 4. 图片推理模式（--image）
+    // ===================================================
+    if (image_path) {
+        std::cout << "\n= 图片推理模式 =" << std::endl;
+        std::cout << "输入图片: " << image_path << std::endl;
+
+        cv::Mat frame = cv::imread(image_path, cv::IMREAD_COLOR);
+        if (frame.empty()) {
+            std::cerr << "[错误] 无法读取图片: " << image_path << std::endl;
+            rknn_destroy(rknn_ctx);
+            if (det_ctx != 0) rknn_destroy(det_ctx);
+            return 1;
+        }
+        uint32_t w_img = frame.cols;
+        uint32_t h_img = frame.rows;
+        std::cout << "图片尺寸: " << w_img << "x" << h_img << std::endl;
+
+        // cv::imread 是 BGR，转 RGB（与共享内存数据格式一致）
+        cv::cvtColor(frame, frame, cv::COLOR_BGR2RGB);
+
+        // 垂直翻转（与流模式一致）
+        cv::flip(frame, frame, 0);
+
+        // 帧裁剪
+        if (cfg.frame_crop.enable) {
+            cv::Rect crop_rc(cfg.frame_crop.x, cfg.frame_crop.y,
+                             cfg.frame_crop.w, cfg.frame_crop.h);
+            frame = frame(crop_rc).clone();
+            w_img = static_cast<uint32_t>(cfg.frame_crop.w);
+            h_img = static_cast<uint32_t>(cfg.frame_crop.h);
+            std::cout << "裁剪后尺寸: " << w_img << "x" << h_img << std::endl;
+        }
+
+        // ---- 语义分割 ----
+        cv::Mat mask;
+        if (cfg.enable_segmentation && rknn_ctx != 0) {
+            cv::Mat input;
+            cv::resize(frame, input, cv::Size(model_w, model_h));
+
+            std::vector<cv::Mat> outputs;
+            int64_t infer_us = 0;
+            if (runInference(rknn_ctx, input, outputs, &infer_us, output_attrs, n_outputs)) {
+                mask = postprocessSeg(outputs, model_w, model_h,
+                                      static_cast<int>(w_img), static_cast<int>(h_img));
+                std::cout << "[分割] 推理耗时: " << (infer_us / 1000.0f) << " ms" << std::endl;
+            }
+        }
+
+        // ---- 目标检测 ----
+        std::vector<ppyoloe::Detection> detections;
+        if (cfg.enable_detection && det_ctx != 0) {
+            cv::Mat det_input;
+            cv::resize(frame, det_input, cv::Size(det_model_w, det_model_h));
+
+            std::vector<cv::Mat> det_outputs;
+            int64_t det_infer_us = 0;
+            if (runInference(det_ctx, det_input, det_outputs, &det_infer_us,
+                             det_output_attrs, det_n_outputs)) {
+                if (det_outputs.size() >= 2) {
+                    detections = ppyoloe::postprocess(
+                        det_outputs[0].ptr<float>(0), det_outputs[1].ptr<float>(0),
+                        static_cast<int>(w_img), static_cast<int>(h_img),
+                        static_cast<int>(h_img), 0,
+                        cfg.detection_score_thresh, cfg.detection_nms_thresh);
+                }
+                std::cout << "[检测] " << detections.size() << " 个目标, "
+                          << (det_infer_us / 1000.0f) << " ms" << std::endl;
+            }
+        }
+
+        // ---- 构建可视化 ----
+        cv::Mat display = frame.clone();
+        if (!mask.empty()) drawSegOverlay(display, mask);
+        if (!detections.empty()) drawDetections(display, detections);
+
+        // 鸟瞰图
+        cv::Mat bird_color;
+        if (!mask.empty()) {
+            cv::Mat bird_mask = perspective.warp(mask);
+            bird_color = cv::Mat(bird_mask.rows, bird_mask.cols, CV_8UC3);
+            bird_color.setTo(cv::Scalar(30, 30, 30));
+            bird_color.setTo(cv::Scalar(0, 200, 0), bird_mask);
+
+            std::vector<cv::Point2f> centers;
+            pathplan::extractCenterline(bird_mask, centers);
+            pathplan::smoothCenterline(centers);
+
+            cv::Point2f aim_pt;
+            float cx = static_cast<float>(bird_mask.cols) * 0.5f;
+            float cy = static_cast<float>(bird_mask.rows) * cfg.car_cy_ratio;
+            if (!centers.empty()) {
+                pathplan::findLookAhead(centers, cx, cy, cfg.aim_dist_near,
+                                       cfg.ppm_x, cfg.ppm_y, aim_pt);
+                drawPathplan(bird_color, centers, aim_pt, cx, cy);
+            }
+        }
+
+        cv::Mat top;
+        if (!bird_color.empty()) {
+            int target_h = display.rows;
+            if (bird_color.rows != target_h) {
+                cv::resize(bird_color, bird_color, cv::Size(
+                    static_cast<int>(static_cast<float>(bird_color.cols) * target_h / bird_color.rows),
+                    target_h));
+            }
+            cv::hconcat(display, bird_color, top);
+        } else {
+            top = display;
+        }
+        drawHUD(top, 0, 0, 0.0f, 0.0f, 0.0f,
+                static_cast<int>(detections.size()), 0.0f);
+
+        // ---- 保存结果 ----
+        std::string out_path = output_path ? output_path : "simble_result.jpg";
+        cv::Mat top_bgr;
+        cv::cvtColor(top, top_bgr, cv::COLOR_RGB2BGR);
+        cv::imwrite(out_path, top_bgr);
+        std::cout << "结果已保存: " << out_path << std::endl;
+
+        // 清理
+        rknn_destroy(rknn_ctx);
+        if (det_ctx != 0) rknn_destroy(det_ctx);
+        std::cout << "[退出] 图片推理完成" << std::endl;
+        return 0;
+    }
+
+    // ===================================================
+    // 5. 打开共享内存
     // ===================================================
     SharedMemory shm;
     std::cout << "\n[共享内存] 等待连接: " << cfg.shm_name << std::endl;
@@ -584,7 +725,7 @@ int main(int argc, char* argv[]) {
     }
 
     // ===================================================
-    // 5. 启动HTTP推流服务器
+    // 6. 启动HTTP推流服务器
     // ===================================================
     HttpStreamServer* http_server = nullptr;
     if (cfg.enable_http_stream) {
@@ -599,7 +740,7 @@ int main(int argc, char* argv[]) {
     }
 
     // ===================================================
-    // 6. 主循环
+    // 7. 主循环
     // ===================================================
     uint64_t frame_counter = 0;
     uint64_t last_fid = 0;
@@ -797,7 +938,7 @@ int main(int argc, char* argv[]) {
     }
 
     // ===================================================
-    // 7. 清理退出
+    // 8. 清理退出
     // ===================================================
     if (http_server) {
         http_server->stop();

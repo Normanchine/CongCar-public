@@ -93,26 +93,34 @@ void CaptureTask::run() {
         cv::flip(frame, frame, 0);
         // 注：frame保持RGB格式（共享内存原始格式），模型直接用，显示时再转BGR
 
-        // ---- 5. 记录原始尺寸（供 DetectionTask 坐标映射） ----
+        // ---- 5. 帧裁剪（flip之后、预处理之前） ----
+        if (ctx_->config.frame_crop.enable) {
+            cv::Rect crop(ctx_->config.frame_crop.x, ctx_->config.frame_crop.y,
+                          ctx_->config.frame_crop.w, ctx_->config.frame_crop.h);
+            frame = frame(crop).clone();  // clone确保内存连续
+            w = static_cast<uint32_t>(ctx_->config.frame_crop.w);
+            h = static_cast<uint32_t>(ctx_->config.frame_crop.h);
+        }
+
+        // ---- 6. 记录工作帧尺寸（供SegTask/DetTask坐标映射和鸟瞰Mask还原） ----
         ctx_->frame_width.store(static_cast<int>(w), std::memory_order_release);
         ctx_->frame_height.store(static_cast<int>(h), std::memory_order_release);
 
-        // ---- 6. 预处理检测帧（RGB直传，缩放到模型输入尺寸） ----
+        // ---- 7. 预处理（RGB直传 + resize到模型输入尺寸） ----
         cv::Mat det_input;
         cv::resize(frame, det_input, cv::Size(det_w, det_h));
 
-        // ---- 7. 入队 ----
-        // 分割预处理: RGB直传 + resize（量化模型UINT8直传）
         cv::Mat seg_input;
         cv::resize(frame, seg_input, cv::Size(seg_w, seg_h));
-        ctx_->segmentation_queue.produce(seg_input);
 
-        ctx_->detection_queue.produce(det_input);       // 预处理后的检测帧
+        // ---- 8. 入队 ----
+        ctx_->segmentation_queue.produce(seg_input);
+        ctx_->detection_queue.produce(det_input);
         if (ctx_->config.debug_mode) {
-            ctx_->display_queue.produce(frame);         // 原始帧（显示线程绘制用）
+            ctx_->display_queue.produce(frame);         // 工作帧（显示线程绘制用）
         }
 
-        // ---- 8. 记录本帧耗时 ----
+        // ---- 9. 记录本帧耗时 ----
         auto t_end = std::chrono::steady_clock::now();
         auto elapsed_us = std::chrono::duration_cast<std::chrono::microseconds>(
             t_end - t_start).count();

@@ -63,6 +63,9 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(UartConfig,
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(HttpStreamConfig,
     port, jpeg_quality, enable)
 
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(FrameCropConfig,
+    enable, x, y, w, h)
+
 inline void to_json(json& j, const CalibConfig& c) {
     j = json {
         {"src_quad",    {c.src_quad[0],c.src_quad[1],c.src_quad[2],c.src_quad[3],
@@ -86,13 +89,14 @@ inline void from_json(const json& j, CalibConfig& c) {
 
 inline void to_json(json& j, const AppConfig& c) {
     j = json {
-        {"debug_mode", c.debug_mode},
-        {"shm_name",   c.shm_name},
-        {"shm_size",   c.shm_size},
-        {"control",    c.control},
-        {"ai",         c.ai},
-        {"calib",      c.calib},
-        {"uart",       c.uart},
+        {"debug_mode",  c.debug_mode},
+        {"shm_name",    c.shm_name},
+        {"shm_size",    c.shm_size},
+        {"frame_crop",  c.frame_crop},
+        {"control",     c.control},
+        {"ai",          c.ai},
+        {"calib",       c.calib},
+        {"uart",        c.uart},
         {"http_stream", c.http_stream}
     };
 }
@@ -101,6 +105,7 @@ inline void from_json(const json& j, AppConfig& c) {
     j.at("debug_mode").get_to(c.debug_mode);
     j.at("shm_name").get_to(c.shm_name);
     j.at("shm_size").get_to(c.shm_size);
+    if (j.contains("frame_crop")) j.at("frame_crop").get_to(c.frame_crop);
     j.at("control").get_to(c.control);
     if (j.contains("ai"))     j.at("ai").get_to(c.ai);
     if (j.contains("calib"))  j.at("calib").get_to(c.calib);

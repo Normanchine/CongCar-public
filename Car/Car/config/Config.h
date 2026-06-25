@@ -69,11 +69,20 @@ struct HttpStreamConfig {
     bool enable       = true;     // 是否启用HTTP推流
 };
 
+struct FrameCropConfig {
+    bool enable = false;
+    int  x      = 0;
+    int  y      = 240;
+    int  w      = 640;
+    int  h      = 240;
+};
+
 struct AppConfig {
     bool        debug_mode = true;
     std::string shm_name   = "shm_ar_video";
     size_t      shm_size   = 10 * 1024 * 1024;  // 10MB
 
+    FrameCropConfig frame_crop;
     ControlConfig   control;
     AIConfig        ai;
     CalibConfig     calib;
