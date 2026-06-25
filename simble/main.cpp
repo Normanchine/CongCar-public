@@ -280,22 +280,28 @@ static bool runInference(rknn_context ctx, const cv::Mat& input,
     return true;
 }
 
+// ============================================================================
+// 分割后处理 — argmax + 贴回原图坐标
+// ============================================================================
 static cv::Mat postprocessSeg(const std::vector<cv::Mat>& outputs,
-                              int orig_w, int orig_h, int model_w, int model_h) {
+                              int model_w, int model_h,
+                              int frame_w, int frame_h,
+                              const cv::Rect& crop_rect) {
     const cv::Mat& out = outputs[0];
     const float* ch0 = out.ptr<float>(0);
     const float* ch1 = out.ptr<float>(1);
 
-    cv::Mat mask(model_h, model_w, CV_8UC1);
+    // argmax：ch0=背景, ch1=赛道
+    cv::Mat crop_mask(model_h, model_w, CV_8UC1);
     const int total = model_w * model_h;
     for (int i = 0; i < total; ++i) {
-        mask.data[i] = (ch0[i] >= ch1[i]) ? 0 : 1;
+        crop_mask.data[i] = (ch0[i] >= ch1[i]) ? 0 : 1;
     }
 
-    cv::Mat mask_resized;
-    cv::resize(mask, mask_resized, cv::Size(orig_w, orig_h),
-               0, 0, cv::INTER_NEAREST);
-    return mask_resized;
+    // 贴回原图坐标
+    cv::Mat mask = cv::Mat::zeros(frame_h, frame_w, CV_8UC1);
+    crop_mask.copyTo(mask(crop_rect));
+    return mask;
 }
 
 // ============================================================================
@@ -624,9 +630,13 @@ int main(int argc, char* argv[]) {
         cv::Mat mask;
         float seg_ms = 0.0f;
         if (cfg.enable_segmentation && rknn_ctx != 0) {
-            // 预处理：frame已是RGB，直接resize
-            cv::Mat input;
-            cv::resize(frame, input, cv::Size(model_w, model_h));
+            // 预处理：从原图中心直接裁剪模型输入尺寸，不缩放（1:1像素对应）
+            int crop_x = (static_cast<int>(w) - model_w) / 2;
+            int crop_y = (static_cast<int>(h) - model_h) / 2;
+            crop_x = std::max(0, crop_x);
+            crop_y = std::max(0, crop_y);
+            cv::Rect crop_rect(crop_x, crop_y, model_w, model_h);
+            cv::Mat input = frame(crop_rect).clone();
 
             // NPU推理
             std::vector<cv::Mat> outputs;
@@ -636,8 +646,9 @@ int main(int argc, char* argv[]) {
             }
             seg_ms = infer_us / 1000.0f;
 
-            // 后处理：argmax得到mask
-            mask = postprocessSeg(outputs, w, h, model_w, model_h);
+            // 后处理：argmax → 贴回原图
+            mask = postprocessSeg(outputs, model_w, model_h,
+                                  static_cast<int>(w), static_cast<int>(h), crop_rect);
         }
 
         // ---- 目标检测（PP-YOLOE） ----

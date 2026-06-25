@@ -31,7 +31,9 @@ Car/Car/CLAUDE.md
 result/
 simble/滤波使用说明.md
 过渡文件/
-
+.codegraph/
+uart_test/
+.idea/
 # 系统
 .DS_Store
 Thumbs.db
