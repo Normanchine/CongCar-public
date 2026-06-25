@@ -7,6 +7,8 @@
 #      从图片文件读取：       ./run_calibrate.sh <图片路径> [配置文件路径]
 #                               ./run_calibrate.sh track.jpg
 #                               ./run_calibrate.sh track.jpg Car/config/default.json
+#      裁剪标定（frame_crop模式）：--crop x,y,w,h 放在参数最前面
+#                               ./run_calibrate.sh --crop 0,240,640,240 track.jpg
 # ========================================
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -21,42 +23,57 @@ if [ ! -f "$EXECUTABLE" ]; then
     exit 1
 fi
 
+# 分离 --crop 参数和位置参数
+CROP_FLAG=""
+POS_ARGS=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --crop)
+            CROP_FLAG="--crop $2"
+            shift 2
+            ;;
+        *)
+            POS_ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+
 echo "========================================"
 echo "  car_calib 透视变换标定工具"
 echo "========================================"
 echo "可执行文件: $EXECUTABLE"
+[ -n "$CROP_FLAG" ] && echo "裁剪: $CROP_FLAG"
 echo "----------------------------------------"
 
-# 根据参数数量决定运行模式
-if [ -z "$1" ]; then
+# 根据位置参数数量决定运行模式
+if [ ${#POS_ARGS[@]} -eq 0 ]; then
     # 无参数：从共享内存读取实时帧
     echo "[模式] 从共享内存读取实时帧"
     echo "配置输出: $DEFAULT_CONFIG"
     echo "[提示] 请确保 Python 视频推流服务已启动"
     echo ""
-    "$EXECUTABLE" "$DEFAULT_CONFIG"
-elif [ "$#" -eq 1 ]; then
+    $EXECUTABLE $CROP_FLAG "$DEFAULT_CONFIG"
+elif [ ${#POS_ARGS[@]} -eq 1 ]; then
     # 一个参数：判断是图片还是配置文件
-    if [[ "$1" == *.json ]] || [[ "$1" == *.JSON ]]; then
-        # 是配置文件，从共享内存读取
+    if [[ "${POS_ARGS[0]}" == *.json ]] || [[ "${POS_ARGS[0]}" == *.JSON ]]; then
         echo "[模式] 从共享内存读取实时帧"
-        echo "配置输出: $1"
+        echo "配置输出: ${POS_ARGS[0]}"
         echo "[提示] 请确保 Python 视频推流服务已启动"
         echo ""
-        "$EXECUTABLE" "$1"
+        $EXECUTABLE $CROP_FLAG "${POS_ARGS[0]}"
     else
-        # 是图片路径
         echo "[模式] 从图片文件读取"
-        echo "图片: $1"
+        echo "图片: ${POS_ARGS[0]}"
         echo "配置输出: $DEFAULT_CONFIG"
         echo ""
-        "$EXECUTABLE" "$1" "$DEFAULT_CONFIG"
+        $EXECUTABLE $CROP_FLAG "${POS_ARGS[0]}" "$DEFAULT_CONFIG"
     fi
 else
     # 两个参数：图片路径 + 配置文件路径
     echo "[模式] 从图片文件读取"
-    echo "图片: $1"
-    echo "配置输出: $2"
+    echo "图片: ${POS_ARGS[0]}"
+    echo "配置输出: ${POS_ARGS[1]}"
     echo ""
-    "$EXECUTABLE" "$1" "$2"
+    $EXECUTABLE $CROP_FLAG "${POS_ARGS[0]}" "${POS_ARGS[1]}"
 fi
