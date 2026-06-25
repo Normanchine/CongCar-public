@@ -21,6 +21,13 @@
     "ppm_x": 0.0,
     "ppm_y": 0.0
   },
+  "frame_crop": {
+    "enable": false,
+    "x": 0,
+    "y": 240,
+    "w": 640,
+    "h": 240
+  },
   "http_stream": {
     "port": 5001,
     "jpeg_quality": 80,

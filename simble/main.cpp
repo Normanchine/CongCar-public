@@ -55,6 +55,14 @@ struct SimbleConfig {
     int bird_height = 480;
     float ppm_x = 0.0f;  // X方向像素/米
     float ppm_y = 0.0f;  // Y方向像素/米
+    // 帧裁剪（flip之后、预处理之前）
+    struct FrameCrop {
+        bool enable = false;
+        int x = 0;
+        int y = 240;
+        int w = 640;
+        int h = 240;
+    } frame_crop;
     // HTTP推流参数
     int http_port = 5001;           // HTTP服务器端口
     int jpeg_quality = 80;          // JPEG编码质量（1-100）
@@ -99,6 +107,15 @@ static bool loadConfig(const std::string& path, SimbleConfig& cfg) {
             if (calib.contains("bird_height")) cfg.bird_height = calib["bird_height"];
             if (calib.contains("ppm_x")) cfg.ppm_x = calib["ppm_x"];
             if (calib.contains("ppm_y")) cfg.ppm_y = calib["ppm_y"];
+        }
+        // 读取帧裁剪配置
+        if (j.contains("frame_crop")) {
+            auto fc = j["frame_crop"];
+            if (fc.contains("enable")) cfg.frame_crop.enable = fc["enable"];
+            if (fc.contains("x")) cfg.frame_crop.x = fc["x"];
+            if (fc.contains("y")) cfg.frame_crop.y = fc["y"];
+            if (fc.contains("w")) cfg.frame_crop.w = fc["w"];
+            if (fc.contains("h")) cfg.frame_crop.h = fc["h"];
         }
         // 读取HTTP推流配置
         if (j.contains("http_stream")) {
@@ -285,22 +302,21 @@ static bool runInference(rknn_context ctx, const cv::Mat& input,
 // ============================================================================
 static cv::Mat postprocessSeg(const std::vector<cv::Mat>& outputs,
                               int model_w, int model_h,
-                              int frame_w, int frame_h,
-                              const cv::Rect& crop_rect) {
+                              int frame_w, int frame_h) {
     const cv::Mat& out = outputs[0];
     const float* ch0 = out.ptr<float>(0);
     const float* ch1 = out.ptr<float>(1);
 
     // argmax：ch0=背景, ch1=赛道
-    cv::Mat crop_mask(model_h, model_w, CV_8UC1);
+    cv::Mat seg_mask(model_h, model_w, CV_8UC1);
     const int total = model_w * model_h;
     for (int i = 0; i < total; ++i) {
-        crop_mask.data[i] = (ch0[i] >= ch1[i]) ? 0 : 1;
+        seg_mask.data[i] = (ch0[i] >= ch1[i]) ? 0 : 1;
     }
 
-    // 贴回原图坐标
-    cv::Mat mask = cv::Mat::zeros(frame_h, frame_w, CV_8UC1);
-    crop_mask.copyTo(mask(crop_rect));
+    // resize 回工作帧尺寸
+    cv::Mat mask;
+    cv::resize(seg_mask, mask, cv::Size(frame_w, frame_h), 0, 0, cv::INTER_NEAREST);
     return mask;
 }
 
@@ -478,6 +494,13 @@ int main(int argc, char* argv[]) {
         std::cout << "HTTP端口: " << cfg.http_port << std::endl;
         std::cout << "JPEG质量: " << cfg.jpeg_quality << std::endl;
     }
+    if (cfg.frame_crop.enable) {
+        std::cout << "帧裁剪: 启用 "
+                  << "x=" << cfg.frame_crop.x << " y=" << cfg.frame_crop.y
+                  << " w=" << cfg.frame_crop.w << " h=" << cfg.frame_crop.h << std::endl;
+    } else {
+        std::cout << "帧裁剪: 禁用" << std::endl;
+    }
     std::cout << "目标检测: " << (cfg.enable_detection ? "启用" : "禁用") << std::endl;
     if (cfg.enable_detection) {
         std::cout << "检测模型: " << cfg.detection_model_path << std::endl;
@@ -626,17 +649,22 @@ int main(int argc, char* argv[]) {
 
         frame_counter++;
 
+        // ---- 帧裁剪（flip之后、预处理之前） ----
+        if (cfg.frame_crop.enable) {
+            cv::Rect crop(cfg.frame_crop.x, cfg.frame_crop.y,
+                          cfg.frame_crop.w, cfg.frame_crop.h);
+            frame = frame(crop).clone();  // clone确保内存连续
+            w = cfg.frame_crop.w;
+            h = cfg.frame_crop.h;
+        }
+
         // ---- 语义分割 ----
         cv::Mat mask;
         float seg_ms = 0.0f;
         if (cfg.enable_segmentation && rknn_ctx != 0) {
-            // 预处理：从原图中心直接裁剪模型输入尺寸，不缩放（1:1像素对应）
-            int crop_x = (static_cast<int>(w) - model_w) / 2;
-            int crop_y = (static_cast<int>(h) - model_h) / 2;
-            crop_x = std::max(0, crop_x);
-            crop_y = std::max(0, crop_y);
-            cv::Rect crop_rect(crop_x, crop_y, model_w, model_h);
-            cv::Mat input = frame(crop_rect).clone();
+            // 预处理：resize 到模型输入尺寸
+            cv::Mat input;
+            cv::resize(frame, input, cv::Size(model_w, model_h));
 
             // NPU推理
             std::vector<cv::Mat> outputs;
@@ -646,20 +674,17 @@ int main(int argc, char* argv[]) {
             }
             seg_ms = infer_us / 1000.0f;
 
-            // 后处理：argmax → 贴回原图
+            // 后处理：argmax → resize 回工作帧尺寸
             mask = postprocessSeg(outputs, model_w, model_h,
-                                  static_cast<int>(w), static_cast<int>(h), crop_rect);
+                                  static_cast<int>(w), static_cast<int>(h));
         }
 
         // ---- 目标检测（PP-YOLOE） ----
         float det_ms = 0.0f;
         if (cfg.enable_detection && det_ctx != 0) {
-            // 预处理：frame已是RGB，直接中心裁剪一半高度 + resize
-            int crop_h = static_cast<int>(h) / 2;
-            int crop_top = (static_cast<int>(h) - crop_h) / 2;
-            cv::Rect crop_rect(0, crop_top, static_cast<int>(w), crop_h);
+            // 预处理：resize 到检测模型输入尺寸
             cv::Mat det_input;
-            cv::resize(frame(crop_rect), det_input, cv::Size(det_model_w, det_model_h));
+            cv::resize(frame, det_input, cv::Size(det_model_w, det_model_h));
 
             // NPU推理
             std::vector<cv::Mat> det_outputs;
@@ -668,15 +693,13 @@ int main(int argc, char* argv[]) {
                              det_output_attrs, det_n_outputs)) {
                 det_ms = det_infer_us / 1000.0f;
 
-                // 后处理
-                // det_outputs[0]: cls (12, 3360) float32
-                // det_outputs[1]: reg (3360, 4)  float32
+                // 后处理：坐标映射到工作帧（全帧，无额外裁剪）
                 if (det_outputs.size() >= 2) {
                     detections = ppyoloe::postprocess(
                         det_outputs[0].ptr<float>(0),  // cls_data
                         det_outputs[1].ptr<float>(0),  // reg_data
                         static_cast<int>(w), static_cast<int>(h),
-                        crop_h, crop_top,
+                        static_cast<int>(h), 0,        // 全帧: crop_h=h, crop_top=0
                         cfg.detection_score_thresh, cfg.detection_nms_thresh);
                 }
             }
