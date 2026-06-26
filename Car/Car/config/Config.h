@@ -28,7 +28,7 @@ struct ControlConfig {
 
     // ---- 丢线容错 ----
     int   max_lost_frames   = 5;       // 最大盲开帧数
-    float coast_speed_decay = 0.9f;    // 盲开每帧速度衰减系数
+    float coast_steer_step  = 200.0f;  // 盲开每帧舵机偏移量(PWM)
 
     // ---- 场景参数 ----
     std::map<std::string, SceneControlParams> scene;

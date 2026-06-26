@@ -15,7 +15,7 @@
     "steer_speed_threshold": 0.15,
     "lookahead_speed_k": 0.15,
     "max_lost_frames": 5,
-    "coast_speed_decay": 0.9,
+    "coast_steer_step": 200.0,
     "scene": {
       "NormalScene": {
         "max_speed": 0.05,

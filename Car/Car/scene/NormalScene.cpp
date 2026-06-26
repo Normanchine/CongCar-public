@@ -42,8 +42,13 @@ void NormalScene::run(SharedContext* ctx) {
         } else {
             std::cerr << "[NormalScene] 赛道闪烁丢失，盲开中... "
                       << lost_frames_ << "/" << ctrl.max_lost_frames << std::endl;
-            ctx->steering_pwm.store(last_pwm_);
-            last_speed_ *= ctrl.coast_speed_decay;
+            // 沿丢线前方向逐步加大舵角，找回赛道
+            float sign = (last_error_ > 0.0f) ? 1.0f : -1.0f;
+            float pwm = last_pwm_ - sign * ctrl.coast_steer_step;
+            pwm = std::clamp(pwm, ctrl.pwm_min, ctrl.pwm_max);
+            last_pwm_ = pwm;
+            ctx->steering_pwm.store(pwm);
+            last_speed_ = sp.max_speed;
             ctx->target_speed.store(last_speed_);
         }
         return;
