@@ -14,6 +14,8 @@ add_executable(car
     main.cpp
     thread/Car.cpp
     scene/NormalScene.cpp
+    scene/CarScene.cpp
+    scene/PersonScene.cpp
     hal/memory/shared_memory_manager.cpp
     hal/uart/UartIO.cpp
     common/PerfStats.cpp
