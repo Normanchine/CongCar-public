@@ -12,6 +12,7 @@
     "pwm_max": 2500.0,
     "pwm_k": 1200.0,
     "steering_invert": false,
+    "steer_speed_threshold": 0.15,
     "lookahead_speed_k": 0.15,
     "max_lost_frames": 5,
     "coast_speed_decay": 0.9,

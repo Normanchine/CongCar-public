@@ -81,10 +81,18 @@ void NormalScene::run(SharedContext* ctx) {
     pwm = std::clamp(pwm, ctrl.pwm_min, ctrl.pwm_max);
 
     last_pwm_ = pwm;
-    last_speed_ = sp.max_speed;
+
+    // 转向幅度过大时降速（大弯减速）
+    float target_speed = sp.max_speed;
+    float abs_err = std::abs(error);
+    if (abs_err > ctrl.steer_speed_threshold) {
+        float excess = abs_err - ctrl.steer_speed_threshold;
+        target_speed = sp.max_speed / (1.0f + 2.0f * excess);
+    }
+    last_speed_ = target_speed;
 
     ctx->steering_pwm.store(pwm);
-    ctx->target_speed.store(sp.max_speed);
+    ctx->target_speed.store(target_speed);
 
     // ---- 8. 更新鸟瞰图中线/前视点（mask已在步骤0.5保存） ----
     if (ctx->config.debug_mode) {
