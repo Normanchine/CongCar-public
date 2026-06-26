@@ -10,7 +10,7 @@
 #include "../common/SharedResult.h"
 #include "../common/PerspectiveMapper.h"
 #include "../config/Config.h"
-#include "../scene/SceneManager.h"
+#include "../scene/framework/SceneManager.h"
 #include <opencv2/core/mat.hpp>
 #include "../threadpool/ThreadPool.h"
 // ---- 语义分割共享结果 ----

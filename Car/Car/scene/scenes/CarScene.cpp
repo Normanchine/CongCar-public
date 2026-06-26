@@ -1,6 +1,6 @@
 #include "CarScene.h"
 #include "../thread/SharedContext.h"
-#include "SceneFactory.h"
+#include "../framework/SceneFactory.h"
 
 REGISTER_SCENE(CarScene)
 

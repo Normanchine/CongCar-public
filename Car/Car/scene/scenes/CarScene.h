@@ -1,6 +1,6 @@
 #pragma once
 
-#include "IScene.h"
+#include "../framework/IScene.h"
 
 // 检测到car时触发的场景
 class CarScene : public IScene {
