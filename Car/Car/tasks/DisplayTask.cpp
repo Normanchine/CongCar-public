@@ -173,6 +173,8 @@ void DisplayTask::run() {
                     bird_color.setTo(kBirdBg);
                 }
             }
+            // BGR→RGB，与左侧display统一色域后再拼接
+            cv::cvtColor(bird_color, bird_color, cv::COLOR_BGR2RGB);
 
             // ---- 3. 水平拼接：左(原图+分割+检测) | 右(鸟瞰图) ----
             int target_h = display.rows;
