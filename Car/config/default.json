@@ -18,23 +18,23 @@
     "coast_steer_step": 200.0,
     "scene": {
       "NormalScene": {
-        "max_speed": 0.05,
-        "pid_p": 1.0,
-        "pid_d": 1.0
+        "max_speed": 0.4,
+        "pid_p": 0.8,
+        "pid_d": 0.6
       }
     }
   },
 
   "ai": {
-    "confidence_threshold": 0.5,
-    "nms_threshold": 0.45,
-    "detection_model_path": "/home/orangepi/Desktop/setupUI-1.0.6_app-1.0.6/setupUI/infer_wrap/base/model/rknn_lt.rknn",
+    "confidence_threshold": 0.3,
+    "nms_threshold": 0.65,
+    "detection_model_path": "/home/orangepi/Desktop/dec/ppyoloe.rknn",
     "segmentation_model_path": "/home/orangepi/Desktop/new/model/seg_512_256.rknn",
     "ocr_model_path": "",
     "segmentation_input_w": 512,
     "segmentation_input_h": 256,
     "detection_input_w": 640,
-    "detection_input_h": 640
+    "detection_input_h": 256
   },
 
   "calib": {
