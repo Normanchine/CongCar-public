@@ -62,7 +62,8 @@ void NormalScene::run(SharedContext* ctx) {
 
     // ---- 5. 航向误差（鸟瞰空间 ppm_x/ppm_y 分别转换） ----
     float error = pathplan::headingError(cx, cy, aim_pt.x, aim_pt.y,
-                                          ctrl.car_length, ppm_x, ppm_y);
+                                          ctrl.car_length, ppm_x, ppm_y)
+                * ctx->steering_dir;
 
     // ---- 6. PD 控制（首帧跳过 D 项，防止场景切换脉冲） ----
     float derivative = 0.0f;

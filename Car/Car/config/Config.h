@@ -20,6 +20,7 @@ struct ControlConfig {
     float pwm_min = 500.0f;            // PWM 下限
     float pwm_max = 2500.0f;           // PWM 上限
     float pwm_k   = 30.0f;             // 误差 → PWM 缩放
+    bool  steering_invert = false;     // AR图像左右镜像时反转转向
 
     // ---- 动态前视 ----
     float lookahead_speed_k = 0.15f;   // 动态前视系数: aim = near + speed * k
