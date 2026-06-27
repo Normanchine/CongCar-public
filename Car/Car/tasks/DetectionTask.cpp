@@ -93,11 +93,15 @@ void DetectionTask::run() {
                         return a.y2 < b.y2;
                     });
                 int cls = best->class_id;
-                // class 8=car, class 9=person
-                if (cls == 8) {
-                    ctx_->scene_manager.switchTo("CarScene");
-                } else if (cls == 9) {
-                    ctx_->scene_manager.switchTo("PersonScene");
+                const auto& classes = ai.detection_classes;
+                const auto& scene_map = ai.detection_scene_map;
+                if (cls >= 0 && cls < static_cast<int>(classes.size())) {
+                    auto it = scene_map.find(classes[cls]);
+                    if (it != scene_map.end()) {
+                        ctx_->scene_manager.switchTo(it->second);
+                    } else {
+                        ctx_->scene_manager.switchTo("NormalScene");
+                    }
                 } else {
                     ctx_->scene_manager.switchTo("NormalScene");
                 }

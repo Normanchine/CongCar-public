@@ -45,18 +45,11 @@ void drawSegmentation(cv::Mat& frame, const SegResult& seg) {
 }
 
 // ---- 绘制检测框 ----
-void drawDetections(cv::Mat& frame, const DetResult& det) {
-    // PP-YOLOE 12类颜色表（BGR）
-    static const int COLORS[][3] = {
-        {0, 255, 0}, {255, 0, 0}, {0, 0, 255}, {0, 255, 255},
-        {255, 0, 255}, {255, 255, 0}, {0, 255, 128}, {0, 128, 255},
-        {255, 0, 128}, {128, 0, 255}, {255, 128, 0}, {128, 255, 0},
-    };
-    static const char* NAMES[] = {
-        "traffic_sign", "start", "stop", "stone", "zebra",
-        "G_Light", "Y_Light", "R_Light", "car", "person",
-        "coin", "speedlimit",
-    };
+void drawDetections(cv::Mat& frame, const DetResult& det, const AIConfig& ai) {
+    int num = ai.detection_class_num;
+    if (num <= 0) return;
+    const auto& names  = ai.detection_classes;
+    const auto& colors = ai.detection_colors;
 
     for (const auto& box : det.boxes) {
         int x1 = static_cast<int>(box.x1);
@@ -64,14 +57,14 @@ void drawDetections(cv::Mat& frame, const DetResult& det) {
         int x2 = static_cast<int>(box.x2);
         int y2 = static_cast<int>(box.y2);
         int cls = box.class_id;
-        if (cls < 0 || cls >= 12) continue;
+        if (cls < 0 || cls >= num) continue;
 
-        cv::Scalar color(COLORS[cls][0], COLORS[cls][1], COLORS[cls][2]);
+        cv::Scalar color(colors[cls][0], colors[cls][1], colors[cls][2]);
 
         cv::rectangle(frame, cv::Point(x1, y1), cv::Point(x2, y2), color, 2);
 
         char label[64];
-        snprintf(label, sizeof(label), "%s %.2f", NAMES[cls], box.confidence);
+        snprintf(label, sizeof(label), "%s %.2f", names[cls].c_str(), box.confidence);
         int baseline = 0;
         cv::Size text_sz = cv::getTextSize(label, cv::FONT_HERSHEY_SIMPLEX, 0.5f, 1, &baseline);
         cv::rectangle(frame, cv::Point(x1, y1 - text_sz.height - 4),
@@ -177,7 +170,7 @@ void DisplayTask::run() {
 
             auto det = ctx_->det_result.get();
             if (det && !det->boxes.empty()) {
-                drawDetections(display, *det);
+                drawDetections(display, *det, ctx_->config.ai);
             }
 
             // ---- 2. 右侧：鸟瞰图（赛道mask + 中线 + 前视点） ----
