@@ -49,6 +49,12 @@ struct AIConfig {
     int segmentation_input_h = 160;
     int detection_input_w    = 640;
     int detection_input_h    = 640;
+
+    // PP-YOLOE 检测类别配置
+    int detection_class_num = 0;
+    std::vector<std::string> detection_classes;
+    std::vector<std::vector<int>> detection_colors;
+    std::map<std::string, std::string> detection_scene_map;
 };
 
 struct CalibConfig {

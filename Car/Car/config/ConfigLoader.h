@@ -55,11 +55,39 @@ inline void from_json(const json& j, ControlConfig& c) {
     if (j.contains("scene")) j.at("scene").get_to(c.scene);
 }
 
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(AIConfig,
-    confidence_threshold, nms_threshold,
-    detection_model_path, segmentation_model_path, ocr_model_path,
-    segmentation_input_w, segmentation_input_h,
-    detection_input_w, detection_input_h)
+inline void to_json(json& j, const AIConfig& c) {
+    j = json{
+        {"confidence_threshold", c.confidence_threshold},
+        {"nms_threshold", c.nms_threshold},
+        {"detection_model_path", c.detection_model_path},
+        {"segmentation_model_path", c.segmentation_model_path},
+        {"ocr_model_path", c.ocr_model_path},
+        {"segmentation_input_w", c.segmentation_input_w},
+        {"segmentation_input_h", c.segmentation_input_h},
+        {"detection_input_w", c.detection_input_w},
+        {"detection_input_h", c.detection_input_h},
+        {"detection_class_num", c.detection_class_num},
+        {"detection_classes", c.detection_classes},
+        {"detection_colors", c.detection_colors},
+        {"detection_scene_map", c.detection_scene_map},
+    };
+}
+
+inline void from_json(const json& j, AIConfig& c) {
+    j.at("confidence_threshold").get_to(c.confidence_threshold);
+    j.at("nms_threshold").get_to(c.nms_threshold);
+    j.at("detection_model_path").get_to(c.detection_model_path);
+    j.at("segmentation_model_path").get_to(c.segmentation_model_path);
+    j.at("ocr_model_path").get_to(c.ocr_model_path);
+    j.at("segmentation_input_w").get_to(c.segmentation_input_w);
+    j.at("segmentation_input_h").get_to(c.segmentation_input_h);
+    j.at("detection_input_w").get_to(c.detection_input_w);
+    j.at("detection_input_h").get_to(c.detection_input_h);
+    if (j.contains("detection_class_num"))    j.at("detection_class_num").get_to(c.detection_class_num);
+    if (j.contains("detection_classes"))      j.at("detection_classes").get_to(c.detection_classes);
+    if (j.contains("detection_colors"))       j.at("detection_colors").get_to(c.detection_colors);
+    if (j.contains("detection_scene_map"))    j.at("detection_scene_map").get_to(c.detection_scene_map);
+}
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(UartConfig,
     port, baud, pwm_neutral)
