@@ -1,5 +1,5 @@
 #include "NormalScene.h"
-#include "../thread/SharedContext.h"
+#include "../../thread/SharedContext.h"
 #include "../planning/PathPlanning.h"
 #include "../framework/SceneFactory.h"
 #include <algorithm>

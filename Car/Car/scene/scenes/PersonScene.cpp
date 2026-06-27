@@ -1,5 +1,5 @@
 #include "PersonScene.h"
-#include "../thread/SharedContext.h"
+#include "../../thread/SharedContext.h"
 #include "../framework/SceneFactory.h"
 
 REGISTER_SCENE(PersonScene)
