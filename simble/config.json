@@ -6,10 +6,13 @@
   "segmentation_input_h": 256,
   "enable_segmentation": true,
   "detection": {
-    "model_path": "/home/orangepi/Desktop/dec/ppyoloe.rknn",
+    "model_path": "/home/orangepi/Desktop/new/model/ppyoloe.rknn",
     "score_thresh": 0.3,
     "nms_thresh": 0.65,
-    "enable": false
+    "enable": false,
+    "class_num": 7,
+    "classes": ["traffic_sign","stone","G_Light","Y_Light","R_Light","car","person"],
+    "colors": [[0,255,0],[0,255,255],[255,0,0],[0,0,255],[0,128,255],[255,0,128],[128,0,255]]
   },
   "car_length": 0.316,
   "car_cy_ratio": 0.95,

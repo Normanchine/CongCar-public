@@ -45,6 +45,10 @@ struct SimbleConfig {
     float detection_score_thresh = 0.3f;   // 置信度阈值
     float detection_nms_thresh = 0.65f;     // NMS IoU 阈值
     bool enable_detection = false;          // 是否启用目标检测
+    // 检测类别配置
+    int detection_class_num = 0;
+    std::vector<std::string> detection_classes;
+    std::vector<std::vector<int>> detection_colors;
     // 车辆物理参数（路径规划用）
     float car_length = 0.316f;
     float car_cy_ratio = 0.95f;
@@ -91,6 +95,9 @@ static bool loadConfig(const std::string& path, SimbleConfig& cfg) {
             if (det.contains("score_thresh")) cfg.detection_score_thresh = det["score_thresh"];
             if (det.contains("nms_thresh")) cfg.detection_nms_thresh = det["nms_thresh"];
             if (det.contains("enable")) cfg.enable_detection = det["enable"];
+            if (det.contains("class_num")) cfg.detection_class_num = det["class_num"];
+            if (det.contains("classes")) det["classes"].get_to(cfg.detection_classes);
+            if (det.contains("colors")) det["colors"].get_to(cfg.detection_colors);
         }
         if (j.contains("car_length")) cfg.car_length = j["car_length"];
         if (j.contains("car_cy_ratio")) cfg.car_cy_ratio = j["car_cy_ratio"];
@@ -409,22 +416,24 @@ void drawHUD(cv::Mat& frame, uint64_t frame_id, int n_centers,
 }
 
 // 绘制目标检测结果
-void drawDetections(cv::Mat& frame, const std::vector<ppyoloe::Detection>& detections) {
+void drawDetections(cv::Mat& frame, const std::vector<ppyoloe::Detection>& detections,
+                    int class_num, const std::vector<std::string>& class_names,
+                    const std::vector<std::vector<int>>& colors) {
+    if (class_num <= 0) return;
     for (const auto& det : detections) {
         int x1 = static_cast<int>(det.x1);
         int y1 = static_cast<int>(det.y1);
         int x2 = static_cast<int>(det.x2);
         int y2 = static_cast<int>(det.y2);
         int cls_id = det.class_id;
+        if (cls_id < 0 || cls_id >= class_num) continue;
 
-        cv::Scalar color(ppyoloe::COLORS_BGR[cls_id % ppyoloe::NUM_CLASSES][0],
-                         ppyoloe::COLORS_BGR[cls_id % ppyoloe::NUM_CLASSES][1],
-                         ppyoloe::COLORS_BGR[cls_id % ppyoloe::NUM_CLASSES][2]);
+        cv::Scalar color(colors[cls_id][0], colors[cls_id][1], colors[cls_id][2]);
 
         cv::rectangle(frame, cv::Point(x1, y1), cv::Point(x2, y2), color, 2);
 
         char label[64];
-        snprintf(label, sizeof(label), "%s %.2f", det.className(), det.score);
+        snprintf(label, sizeof(label), "%s %.2f", class_names[cls_id].c_str(), det.score);
         int baseline = 0;
         cv::Size text_sz = cv::getTextSize(label, cv::FONT_HERSHEY_SIMPLEX, 0.5f, 1, &baseline);
 
@@ -658,7 +667,8 @@ int main(int argc, char* argv[]) {
         // ---- 构建可视化 ----
         cv::Mat display = frame.clone();
         if (!mask.empty()) drawSegOverlay(display, mask);
-        if (!detections.empty()) drawDetections(display, detections);
+        if (!detections.empty()) drawDetections(display, detections,
+            cfg.detection_class_num, cfg.detection_classes, cfg.detection_colors);
 
         // 鸟瞰图
         cv::Mat bird_color;
@@ -908,7 +918,8 @@ int main(int argc, char* argv[]) {
         }
         // 检测框（仅启用且有结果时）
         if (cfg.enable_detection && !detections.empty()) {
-            drawDetections(display, detections);
+            drawDetections(display, detections,
+                cfg.detection_class_num, cfg.detection_classes, cfg.detection_colors);
         }
 
         cv::Mat top;
