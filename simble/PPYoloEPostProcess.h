@@ -14,21 +14,8 @@ constexpr int INPUT_H = 256;
 constexpr int INPUT_W = 640;
 constexpr int FPN_STRIDES[] = {32, 16, 8};
 constexpr float GRID_OFFSET = 0.5f;
-constexpr int NUM_CLASSES = 12;
+constexpr int NUM_CLASSES = 7;
 constexpr int NUM_ANCHORS = 3360; // 8×20 + 16×40 + 32×80
-
-const char* CLASS_NAMES[] = {
-    "traffic_sign", "start", "stop", "stone", "zebra",
-    "G_Light", "Y_Light", "R_Light", "car", "person",
-    "coin", "speedlimit",
-};
-
-// BGR 颜色表（OpenCV 用）
-const int COLORS_BGR[][3] = {
-    {0, 255, 0}, {255, 0, 0}, {0, 0, 255}, {0, 255, 255},
-    {255, 0, 255}, {255, 255, 0}, {0, 255, 128}, {0, 128, 255},
-    {255, 0, 128}, {128, 0, 255}, {255, 128, 0}, {128, 255, 0},
-};
 
 // ---- 检测结果 ----
 
@@ -36,10 +23,6 @@ struct Detection {
     int class_id;
     float score;
     float x1, y1, x2, y2;
-
-    const char* className() const {
-        return (class_id >= 0 && class_id < NUM_CLASSES) ? CLASS_NAMES[class_id] : "Unknown";
-    }
 };
 
 // ---- Anchor 网格（延迟初始化，线程安全） ----
