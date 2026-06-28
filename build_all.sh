@@ -19,7 +19,7 @@ set -e  # 遇错即停
 
 # ---- 1. 构建 Car 主程序 ----
 echo ""
-echo "[1/3] 构建 Car 主程序..."
+echo "[1/2] 构建 Car 主程序..."
 cd "$SCRIPT_DIR/Car"
 mkdir -p build
 cd build
@@ -29,19 +29,9 @@ echo "[OK] Car 构建完成:"
 echo "     - $SCRIPT_DIR/Car/build/car"
 echo "     - $SCRIPT_DIR/Car/build/car_calib"
 
-# ---- 2. 构建 seg_test ----
+# ---- 2. 构建 simble ----
 echo ""
-echo "[2/3] 构建 seg_test..."
-cd "$SCRIPT_DIR/seg"
-mkdir -p build
-cd build
-cmake .. -DCMAKE_BUILD_TYPE="$BUILD_TYPE"
-make -j$(nproc)
-echo "[OK] seg_test 构建完成: $SCRIPT_DIR/seg/build/seg_test"
-
-# ---- 3. 构建 simble ----
-echo ""
-echo "[3/3] 构建 simble..."
+echo "[2/2] 构建 simble..."
 cd "$SCRIPT_DIR/simble"
 mkdir -p build
 cd build
@@ -66,6 +56,5 @@ echo ""
 echo "运行脚本:"
 echo "  ./run_car.sh [配置文件]           - 运行Car主程序"
 echo "  ./run_calibrate.sh [选项]         - Car透视变换标定(C++版)"
-echo "  ./run_seg.sh <图片> [模型]        - 语义分割测试"
 echo "  ./run_simble_test.sh [配置文件]   - 巡线一体化测试"
 echo "  ./run_simble_calib.sh [选项]      - 透视变换标定(C++版)"
