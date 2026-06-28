@@ -45,11 +45,11 @@ void drawSegmentation(cv::Mat& frame, const SegResult& seg) {
 }
 
 // ---- 绘制检测框 ----
-void drawDetections(cv::Mat& frame, const DetResult& det, const AIConfig& ai) {
-    int num = ai.detection_class_num;
+void drawDetections(cv::Mat& frame, const DetResult& det, const DetectionConfig& det_cfg) {
+    int num = det_cfg.class_num;
     if (num <= 0) return;
-    const auto& names  = ai.detection_classes;
-    const auto& colors = ai.detection_colors;
+    const auto& names  = det_cfg.classes;
+    const auto& colors = det_cfg.colors;
 
     for (const auto& box : det.boxes) {
         int x1 = static_cast<int>(box.x1);
@@ -170,7 +170,7 @@ void DisplayTask::run() {
 
             auto det = ctx_->det_result.get();
             if (det && !det->boxes.empty()) {
-                drawDetections(display, *det, ctx_->config.ai);
+                drawDetections(display, *det, ctx_->config.ai.detection);
             }
 
             // ---- 2. 右侧：鸟瞰图（赛道mask + 中线 + 前视点） ----

@@ -18,9 +18,9 @@ SegmentationTask::~SegmentationTask() = default;
 
 void SegmentationTask::run() {
     RKNNEngine engine;
-    const auto& ai = ctx_->config.ai;
+    const auto& seg_cfg = ctx_->config.ai.segmentation;
 
-    if (!engine.load(ai.segmentation_model_path, 2)) {
+    if (!engine.load(seg_cfg.model_path, 2)) {
         std::cerr << "[SegTask] 模型加载失败" << std::endl;
         return;
     }

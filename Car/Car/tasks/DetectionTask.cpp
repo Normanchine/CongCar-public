@@ -19,15 +19,15 @@ DetectionTask::~DetectionTask() = default;
 
 void DetectionTask::run() {
     RKNNEngine engine;
-    const auto& ai = ctx_->config.ai;
+    const auto& det_cfg = ctx_->config.ai.detection;
 
-    if (!engine.load(ai.detection_model_path, 0)) {
+    if (!engine.load(det_cfg.model_path, 0)) {
         std::cerr << "[DetTask] 模型加载失败" << std::endl;
         return;
     }
 
-    const int iw = ai.detection_input_w;
-    const int ih = ai.detection_input_h;
+    const int iw = det_cfg.input_w;
+    const int ih = det_cfg.input_h;
 
     std::cout << "[DetTask] 已启动 (输入: " << iw << "x" << ih << ")" << std::endl;
 
@@ -73,7 +73,7 @@ void DetectionTask::run() {
                 outputs[0].ptr<float>(0), outputs[1].ptr<float>(0),
                 orig_w, orig_h,
                 orig_h, 0,    // 工作帧即全图，无额外裁剪
-                ai.confidence_threshold, ai.nms_threshold);
+                det_cfg.confidence_threshold, det_cfg.nms_threshold);
 
             // 转换为DetResult
             DetResult result;
@@ -93,8 +93,8 @@ void DetectionTask::run() {
                         return a.y2 < b.y2;
                     });
                 int cls = best->class_id;
-                const auto& classes = ai.detection_classes;
-                const auto& scene_map = ai.detection_scene_map;
+                const auto& classes = det_cfg.classes;
+                const auto& scene_map = det_cfg.scene_map;
                 if (cls >= 0 && cls < static_cast<int>(classes.size())) {
                     auto it = scene_map.find(classes[cls]);
                     if (it != scene_map.end()) {

@@ -55,38 +55,64 @@ inline void from_json(const json& j, ControlConfig& c) {
     if (j.contains("scene")) j.at("scene").get_to(c.scene);
 }
 
+// ---- SegmentationConfig 序列化 ----
+
+inline void to_json(json& j, const SegmentationConfig& s) {
+    j = json{
+        {"model_path", s.model_path},
+        {"input_w", s.input_w},
+        {"input_h", s.input_h},
+    };
+}
+
+inline void from_json(const json& j, SegmentationConfig& s) {
+    j.at("model_path").get_to(s.model_path);
+    j.at("input_w").get_to(s.input_w);
+    j.at("input_h").get_to(s.input_h);
+}
+
+// ---- DetectionConfig 序列化 ----
+
+inline void to_json(json& j, const DetectionConfig& d) {
+    j = json{
+        {"model_path", d.model_path},
+        {"input_w", d.input_w},
+        {"input_h", d.input_h},
+        {"confidence_threshold", d.confidence_threshold},
+        {"nms_threshold", d.nms_threshold},
+        {"class_num", d.class_num},
+        {"classes", d.classes},
+        {"colors", d.colors},
+        {"scene_map", d.scene_map},
+    };
+}
+
+inline void from_json(const json& j, DetectionConfig& d) {
+    j.at("model_path").get_to(d.model_path);
+    j.at("input_w").get_to(d.input_w);
+    j.at("input_h").get_to(d.input_h);
+    j.at("confidence_threshold").get_to(d.confidence_threshold);
+    j.at("nms_threshold").get_to(d.nms_threshold);
+    if (j.contains("class_num"))  j.at("class_num").get_to(d.class_num);
+    if (j.contains("classes"))    j.at("classes").get_to(d.classes);
+    if (j.contains("colors"))     j.at("colors").get_to(d.colors);
+    if (j.contains("scene_map"))  j.at("scene_map").get_to(d.scene_map);
+}
+
+// ---- AIConfig 序列化（嵌套 segmentation + detection） ----
+
 inline void to_json(json& j, const AIConfig& c) {
     j = json{
-        {"confidence_threshold", c.confidence_threshold},
-        {"nms_threshold", c.nms_threshold},
-        {"detection_model_path", c.detection_model_path},
-        {"segmentation_model_path", c.segmentation_model_path},
+        {"segmentation", c.segmentation},
+        {"detection",    c.detection},
         {"ocr_model_path", c.ocr_model_path},
-        {"segmentation_input_w", c.segmentation_input_w},
-        {"segmentation_input_h", c.segmentation_input_h},
-        {"detection_input_w", c.detection_input_w},
-        {"detection_input_h", c.detection_input_h},
-        {"detection_class_num", c.detection_class_num},
-        {"detection_classes", c.detection_classes},
-        {"detection_colors", c.detection_colors},
-        {"detection_scene_map", c.detection_scene_map},
     };
 }
 
 inline void from_json(const json& j, AIConfig& c) {
-    j.at("confidence_threshold").get_to(c.confidence_threshold);
-    j.at("nms_threshold").get_to(c.nms_threshold);
-    j.at("detection_model_path").get_to(c.detection_model_path);
-    j.at("segmentation_model_path").get_to(c.segmentation_model_path);
-    j.at("ocr_model_path").get_to(c.ocr_model_path);
-    j.at("segmentation_input_w").get_to(c.segmentation_input_w);
-    j.at("segmentation_input_h").get_to(c.segmentation_input_h);
-    j.at("detection_input_w").get_to(c.detection_input_w);
-    j.at("detection_input_h").get_to(c.detection_input_h);
-    if (j.contains("detection_class_num"))    j.at("detection_class_num").get_to(c.detection_class_num);
-    if (j.contains("detection_classes"))      j.at("detection_classes").get_to(c.detection_classes);
-    if (j.contains("detection_colors"))       j.at("detection_colors").get_to(c.detection_colors);
-    if (j.contains("detection_scene_map"))    j.at("detection_scene_map").get_to(c.detection_scene_map);
+    if (j.contains("segmentation")) j.at("segmentation").get_to(c.segmentation);
+    if (j.contains("detection"))    j.at("detection").get_to(c.detection);
+    if (j.contains("ocr_model_path")) j.at("ocr_model_path").get_to(c.ocr_model_path);
 }
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(UartConfig,

@@ -34,27 +34,33 @@ struct ControlConfig {
     std::map<std::string, SceneControlParams> scene;
 };
 
-struct AIConfig {
-    float confidence_threshold = 0.5f;       // 置信度阈值
-    float nms_threshold        = 0.45f;      // NMS 阈值
+struct SegmentationConfig {
+    std::string model_path =
+        "/home/orangepi/Desktop/seg_python/model/pplite_seg.rknn";
+    int input_w = 160;
+    int input_h = 160;
+};
 
-    std::string detection_model_path =        // 目标检测模型
+struct DetectionConfig {
+    std::string model_path =
         "/home/orangepi/Desktop/setupUI-1.0.6_app-1.0.6/setupUI/"
         "infer_wrap/base/model/rknn_lt.rknn";
-    std::string segmentation_model_path = 
-        "/home/orangepi/Desktop/seg_python/model/pplite_seg.rknn";     // 语义分割模型
-    std::string ocr_model_path;              // OCR 模型
+    int input_w = 640;
+    int input_h = 640;
+    float confidence_threshold = 0.5f;
+    float nms_threshold        = 0.45f;
 
-    int segmentation_input_w = 160;
-    int segmentation_input_h = 160;
-    int detection_input_w    = 640;
-    int detection_input_h    = 640;
+    // 类别配置
+    int class_num = 0;
+    std::vector<std::string> classes;
+    std::vector<std::vector<int>> colors;
+    std::map<std::string, std::string> scene_map;
+};
 
-    // PP-YOLOE 检测类别配置
-    int detection_class_num = 0;
-    std::vector<std::string> detection_classes;
-    std::vector<std::vector<int>> detection_colors;
-    std::map<std::string, std::string> detection_scene_map;
+struct AIConfig {
+    DetectionConfig    detection;
+    SegmentationConfig segmentation;
+    std::string        ocr_model_path;
 };
 
 struct CalibConfig {

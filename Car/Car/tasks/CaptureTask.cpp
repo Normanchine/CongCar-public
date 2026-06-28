@@ -21,10 +21,10 @@ void CaptureTask::run() {
 
     const auto& shm_name = ctx_->config.shm_name;
     const auto  shm_size = ctx_->config.shm_size;
-    const int   det_w  = ctx_->config.ai.detection_input_w;
-    const int   det_h  = ctx_->config.ai.detection_input_h;
-    const int   seg_w  = ctx_->config.ai.segmentation_input_w;
-    const int   seg_h  = ctx_->config.ai.segmentation_input_h;
+    const int   det_w  = ctx_->config.ai.detection.input_w;
+    const int   det_h  = ctx_->config.ai.detection.input_h;
+    const int   seg_w  = ctx_->config.ai.segmentation.input_w;
+    const int   seg_h  = ctx_->config.ai.segmentation.input_h;
 
     uint64_t last_fid = 0;
 
