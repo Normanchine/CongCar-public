@@ -49,6 +49,7 @@ struct DetectionConfig {
     int input_h = 640;
     float confidence_threshold = 0.5f;
     float nms_threshold        = 0.45f;
+    int   lost_frame_limit     = 5;    // 特殊场景切回NormalScene的缓冲帧数
 
     // 类别配置
     int class_num = 0;

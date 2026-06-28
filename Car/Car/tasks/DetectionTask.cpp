@@ -86,7 +86,9 @@ void DetectionTask::run() {
             }
             ctx_->det_result.publish(std::move(result));
 
-            // 场景切换：取图像最下方的目标（y2最大，离车最近）
+            // 场景切换：取图像最下方的目标，带防抖
+            // 确定最佳检测对应的场景名
+            std::string best_scene = "NormalScene";
             if (!detections.empty()) {
                 auto best = std::max_element(detections.begin(), detections.end(),
                     [](const ppyoloe::Detection& a, const ppyoloe::Detection& b) {
@@ -94,19 +96,24 @@ void DetectionTask::run() {
                     });
                 int cls = best->class_id;
                 const auto& classes = det_cfg.classes;
-                const auto& scene_map = det_cfg.scene_map;
                 if (cls >= 0 && cls < static_cast<int>(classes.size())) {
-                    auto it = scene_map.find(classes[cls]);
-                    if (it != scene_map.end()) {
-                        ctx_->scene_manager.switchTo(it->second);
-                    } else {
-                        ctx_->scene_manager.switchTo("NormalScene");
-                    }
-                } else {
-                    ctx_->scene_manager.switchTo("NormalScene");
+                    auto it = det_cfg.scene_map.find(classes[cls]);
+                    if (it != det_cfg.scene_map.end())
+                        best_scene = it->second;
                 }
+            }
+
+            const auto& cur = ctx_->scene_manager.currentName();
+            if (best_scene == cur) {
+                det_lost_frames_ = 0;               // 持续命中，复位
+            } else if (cur == "NormalScene") {
+                ctx_->scene_manager.switchTo(best_scene);  // 从普通场景即时切入
             } else {
-                ctx_->scene_manager.switchTo("NormalScene");
+                det_lost_frames_++;                  // 特殊场景间切换需缓冲
+                if (det_lost_frames_ >= det_cfg.lost_frame_limit) {
+                    ctx_->scene_manager.switchTo(best_scene);
+                    det_lost_frames_ = 0;
+                }
             }
         }
 

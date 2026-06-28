@@ -80,6 +80,7 @@ inline void to_json(json& j, const DetectionConfig& d) {
         {"input_h", d.input_h},
         {"confidence_threshold", d.confidence_threshold},
         {"nms_threshold", d.nms_threshold},
+        {"lost_frame_limit", d.lost_frame_limit},
         {"class_num", d.class_num},
         {"classes", d.classes},
         {"colors", d.colors},
@@ -93,6 +94,7 @@ inline void from_json(const json& j, DetectionConfig& d) {
     j.at("input_h").get_to(d.input_h);
     j.at("confidence_threshold").get_to(d.confidence_threshold);
     j.at("nms_threshold").get_to(d.nms_threshold);
+    if (j.contains("lost_frame_limit")) j.at("lost_frame_limit").get_to(d.lost_frame_limit);
     if (j.contains("class_num"))  j.at("class_num").get_to(d.class_num);
     if (j.contains("classes"))    j.at("classes").get_to(d.classes);
     if (j.contains("colors"))     j.at("colors").get_to(d.colors);
