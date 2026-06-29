@@ -132,6 +132,7 @@ inline void to_json(json& j, const CalibConfig& c) {
                          c.src_quad[4],c.src_quad[5],c.src_quad[6],c.src_quad[7]}},
         {"bird_width",  c.bird_width},
         {"bird_height", c.bird_height},
+        {"bird_width_scale", c.bird_width_scale},
         {"ppm_x",       c.ppm_x},
         {"ppm_y",       c.ppm_y}
     };
@@ -143,6 +144,7 @@ inline void from_json(const json& j, CalibConfig& c) {
         c.src_quad[i] = arr[i];
     j.at("bird_width").get_to(c.bird_width);
     j.at("bird_height").get_to(c.bird_height);
+    if (j.contains("bird_width_scale")) j.at("bird_width_scale").get_to(c.bird_width_scale);
     j.at("ppm_x").get_to(c.ppm_x);
     j.at("ppm_y").get_to(c.ppm_y);
 }

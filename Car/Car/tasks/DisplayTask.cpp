@@ -174,8 +174,8 @@ void DisplayTask::run() {
             }
 
             // ---- 2. 右侧：鸟瞰图（赛道mask + 中线 + 前视点） ----
-            int bird_w = ctx_->config.calib.bird_width;
-            int bird_h = ctx_->config.calib.bird_height;
+            int bird_w = ctx_->perspective.birdW();
+            int bird_h = ctx_->perspective.birdH();
             cv::Mat bird_color(bird_h, bird_w, CV_8UC3);
 
             {
