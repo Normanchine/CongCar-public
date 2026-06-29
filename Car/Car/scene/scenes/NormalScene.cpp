@@ -12,8 +12,12 @@ void NormalScene::run(SharedContext* ctx) {
     auto seg = ctx->seg_result.get();
     if (!seg || seg->mask.empty()) return;
 
-    // ---- 0. 透视变换到鸟瞰 ----
-    cv::Mat mask = ctx->perspective.warp(seg->mask);
+    // ---- 0. 岔路处理（透视变换前，在原始mask上抹除分支） ----
+    cv::Mat mask_raw = seg->mask.clone();
+    pathplan::handleFork(mask_raw);
+
+    // ---- 1. 透视变换到鸟瞰 ----
+    cv::Mat mask = ctx->perspective.warp(mask_raw);
     int w = mask.cols, h = mask.rows;
     float ppm_x = ctx->config.calib.ppm_x;
     float ppm_y = ctx->config.calib.ppm_y;
