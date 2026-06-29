@@ -48,7 +48,7 @@ void NormalScene::run(SharedContext* ctx) {
             pwm = std::clamp(pwm, ctrl.pwm_min, ctrl.pwm_max);
             last_pwm_ = pwm;
             ctx->steering_pwm.store(pwm);
-            last_speed_ = sp.max_speed;
+            last_speed_ = last_speed_ * ctrl.coast_speed_decay;
             ctx->target_speed.store(last_speed_);
         }
         return;
@@ -72,9 +72,7 @@ void NormalScene::run(SharedContext* ctx) {
 
     // ---- 6. PD 控制（首帧跳过 D 项，防止场景切换脉冲） ----
     float derivative = 0.0f;
-    if (first_frame_) {
-        first_frame_ = false;
-    } else {
+    if (!first_frame_) {
         derivative = error - last_error_;
     }
     last_error_ = error;
@@ -94,10 +92,18 @@ void NormalScene::run(SharedContext* ctx) {
         float excess = abs_err - ctrl.steer_speed_threshold;
         target_speed = sp.max_speed / (1.0f + 2.0f * excess);
     }
-    last_speed_ = target_speed;
+
+    // 加速缓冲：减速立即生效，加速（含首帧起步、弯后恢复、盲开恢复）一律平滑
+    if (target_speed < last_speed_) {
+        last_speed_ = target_speed;
+    } else {
+        last_speed_ += (target_speed - last_speed_) * ctrl.speed_recovery_k;
+    }
 
     ctx->steering_pwm.store(pwm);
-    ctx->target_speed.store(target_speed);
+    ctx->target_speed.store(last_speed_);
+
+    first_frame_ = false;
 
     // ---- 8. 更新鸟瞰图中线/前视点（mask已在步骤0.5保存） ----
     if (ctx->config.debug_mode) {
