@@ -20,33 +20,48 @@ struct ControlConfig {
     float pwm_min = 500.0f;            // PWM 下限
     float pwm_max = 2500.0f;           // PWM 上限
     float pwm_k   = 30.0f;             // 误差 → PWM 缩放
+    bool  steering_invert = false;     // AR图像左右镜像时反转转向
+    float steer_speed_threshold = 0.15f;  // |error|超过此值(rad)启动降速
 
     // ---- 动态前视 ----
     float lookahead_speed_k = 0.15f;   // 动态前视系数: aim = near + speed * k
 
     // ---- 丢线容错 ----
     int   max_lost_frames   = 5;       // 最大盲开帧数
-    float coast_speed_decay = 0.9f;    // 盲开每帧速度衰减系数
+    float coast_steer_step  = 200.0f;  // 盲开每帧舵机偏移量(PWM)
 
     // ---- 场景参数 ----
     std::map<std::string, SceneControlParams> scene;
 };
 
-struct AIConfig {
-    float confidence_threshold = 0.5f;       // 置信度阈值
-    float nms_threshold        = 0.45f;      // NMS 阈值
+struct SegmentationConfig {
+    std::string model_path =
+        "/home/orangepi/Desktop/seg_python/model/pplite_seg.rknn";
+    int input_w = 160;
+    int input_h = 160;
+};
 
-    std::string detection_model_path =        // 目标检测模型
+struct DetectionConfig {
+    std::string model_path =
         "/home/orangepi/Desktop/setupUI-1.0.6_app-1.0.6/setupUI/"
         "infer_wrap/base/model/rknn_lt.rknn";
-    std::string segmentation_model_path = 
-        "/home/orangepi/Desktop/seg_python/model/pplite_seg.rknn";     // 语义分割模型
-    std::string ocr_model_path;              // OCR 模型
+    int input_w = 640;
+    int input_h = 640;
+    float confidence_threshold = 0.5f;
+    float nms_threshold        = 0.45f;
+    int   lost_frame_limit     = 5;    // 特殊场景切回NormalScene的缓冲帧数
 
-    int segmentation_input_w = 160;
-    int segmentation_input_h = 160;
-    int detection_input_w    = 640;
-    int detection_input_h    = 640;
+    // 类别配置
+    int class_num = 0;
+    std::vector<std::string> classes;
+    std::vector<std::vector<int>> colors;
+    std::map<std::string, std::string> scene_map;
+};
+
+struct AIConfig {
+    DetectionConfig    detection;
+    SegmentationConfig segmentation;
+    std::string        ocr_model_path;
 };
 
 struct CalibConfig {
@@ -69,11 +84,20 @@ struct HttpStreamConfig {
     bool enable       = true;     // 是否启用HTTP推流
 };
 
+struct FrameCropConfig {
+    bool enable = false;
+    int  x      = 0;
+    int  y      = 240;
+    int  w      = 640;
+    int  h      = 240;
+};
+
 struct AppConfig {
     bool        debug_mode = true;
     std::string shm_name   = "shm_ar_video";
     size_t      shm_size   = 10 * 1024 * 1024;  // 10MB
 
+    FrameCropConfig frame_crop;
     ControlConfig   control;
     AIConfig        ai;
     CalibConfig     calib;

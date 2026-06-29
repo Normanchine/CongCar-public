@@ -6,47 +6,66 @@
   "control": {
     "car_length": 0.193,
     "car_cy_ratio": 0.95,
-    "aim_dist_near": 0.35,
-    "pwm_mid": 1500.0,
+    "aim_dist_near": 0.15,
+    "pwm_mid": 1560.0,
     "pwm_min": 500.0,
     "pwm_max": 2500.0,
-    "pwm_k": 1200.0,
+    "pwm_k": 600.0,
+    "steering_invert": false,
+    "steer_speed_threshold": 0.15,
     "lookahead_speed_k": 0.15,
     "max_lost_frames": 5,
-    "coast_speed_decay": 0.9,
+    "coast_steer_step": 200.0,
     "scene": {
       "NormalScene": {
-        "max_speed": 0.2,
-        "pid_p": 1.5,
-        "pid_d": 0.3
+        "max_speed": 0.4,
+        "pid_p": 0.8,
+        "pid_d": 0.6
       }
     }
   },
 
   "ai": {
-    "confidence_threshold": 0.5,
-    "nms_threshold": 0.45,
-    "detection_model_path": "/home/orangepi/Desktop/setupUI-1.0.6_app-1.0.6/setupUI/infer_wrap/base/model/rknn_lt.rknn",
-    "segmentation_model_path": "/home/orangepi/Desktop/new/seg/build/model/pplite_seg.rknn",
-    "ocr_model_path": "",
-    "segmentation_input_w": 256,
-    "segmentation_input_h": 128,
-    "detection_input_w": 640,
-    "detection_input_h": 640
+    "segmentation": {
+      "model_path": "/home/orangepi/Desktop/new/model/seg_512_256.rknn",
+      "input_w": 512,
+      "input_h": 256
+    },
+    "detection": {
+      "model_path": "/home/orangepi/Desktop/new/model/ppyoloe.rknn",
+      "input_w": 640,
+      "input_h": 256,
+      "confidence_threshold": 0.3,
+      "nms_threshold": 0.65,
+      "lost_frame_limit": 5,
+      "class_num": 7,
+      "classes": ["traffic_sign","stone","G_Light","Y_Light","R_Light","car","person"],
+      "colors": [[0,255,0],[0,255,255],[255,0,0],[0,0,255],[0,128,255],[255,0,128],[128,0,255]],
+      "scene_map": {"car": "CarScene", "person": "PersonScene"}
+    },
+    "ocr_model_path": ""
   },
 
-  "calib": {  
-    "src_quad": [0, 0, 0, 0, 0, 0, 0, 0],
-    "bird_width": 640,
+  "calib": {
+    "src_quad": [322.0, 96.0, 390.0, 97.0, 439.0, 177.0, 243.0, 171.0],
+    "bird_width": 240,
     "bird_height": 480,
-    "ppm_x": 0.0,
-    "ppm_y": 0.0
+    "ppm_x": 600.0,
+    "ppm_y": 600.0
   },
 
   "uart": {
     "port": "/dev/ttyUSB0",
     "baud": 115200,
     "pwm_neutral": 1500.0
+  },
+
+  "frame_crop": {
+    "enable": true,
+    "x": 0,
+    "y": 240,
+    "w": 640,
+    "h": 240
   },
 
   "http_stream": {

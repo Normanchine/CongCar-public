@@ -30,9 +30,11 @@ inline void to_json(json& j, const ControlConfig& c) {
         {"pwm_min",             c.pwm_min},
         {"pwm_max",             c.pwm_max},
         {"pwm_k",               c.pwm_k},
+        {"steering_invert",        c.steering_invert},
+        {"steer_speed_threshold", c.steer_speed_threshold},
         {"lookahead_speed_k",   c.lookahead_speed_k},
         {"max_lost_frames",     c.max_lost_frames},
-        {"coast_speed_decay",   c.coast_speed_decay},
+        {"coast_steer_step",   c.coast_steer_step},
         {"scene",               c.scene}
     };
 }
@@ -45,23 +47,84 @@ inline void from_json(const json& j, ControlConfig& c) {
     j.at("pwm_min").get_to(c.pwm_min);
     j.at("pwm_max").get_to(c.pwm_max);
     j.at("pwm_k").get_to(c.pwm_k);
+    if (j.contains("steering_invert"))        j.at("steering_invert").get_to(c.steering_invert);
+    if (j.contains("steer_speed_threshold"))  j.at("steer_speed_threshold").get_to(c.steer_speed_threshold);
     if (j.contains("lookahead_speed_k"))   j.at("lookahead_speed_k").get_to(c.lookahead_speed_k);
     if (j.contains("max_lost_frames"))     j.at("max_lost_frames").get_to(c.max_lost_frames);
-    if (j.contains("coast_speed_decay"))   j.at("coast_speed_decay").get_to(c.coast_speed_decay);
+    if (j.contains("coast_steer_step"))    j.at("coast_steer_step").get_to(c.coast_steer_step);
     if (j.contains("scene")) j.at("scene").get_to(c.scene);
 }
 
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(AIConfig,
-    confidence_threshold, nms_threshold,
-    detection_model_path, segmentation_model_path, ocr_model_path,
-    segmentation_input_w, segmentation_input_h,
-    detection_input_w, detection_input_h)
+// ---- SegmentationConfig 序列化 ----
+
+inline void to_json(json& j, const SegmentationConfig& s) {
+    j = json{
+        {"model_path", s.model_path},
+        {"input_w", s.input_w},
+        {"input_h", s.input_h},
+    };
+}
+
+inline void from_json(const json& j, SegmentationConfig& s) {
+    j.at("model_path").get_to(s.model_path);
+    j.at("input_w").get_to(s.input_w);
+    j.at("input_h").get_to(s.input_h);
+}
+
+// ---- DetectionConfig 序列化 ----
+
+inline void to_json(json& j, const DetectionConfig& d) {
+    j = json{
+        {"model_path", d.model_path},
+        {"input_w", d.input_w},
+        {"input_h", d.input_h},
+        {"confidence_threshold", d.confidence_threshold},
+        {"nms_threshold", d.nms_threshold},
+        {"lost_frame_limit", d.lost_frame_limit},
+        {"class_num", d.class_num},
+        {"classes", d.classes},
+        {"colors", d.colors},
+        {"scene_map", d.scene_map},
+    };
+}
+
+inline void from_json(const json& j, DetectionConfig& d) {
+    j.at("model_path").get_to(d.model_path);
+    j.at("input_w").get_to(d.input_w);
+    j.at("input_h").get_to(d.input_h);
+    j.at("confidence_threshold").get_to(d.confidence_threshold);
+    j.at("nms_threshold").get_to(d.nms_threshold);
+    if (j.contains("lost_frame_limit")) j.at("lost_frame_limit").get_to(d.lost_frame_limit);
+    if (j.contains("class_num"))  j.at("class_num").get_to(d.class_num);
+    if (j.contains("classes"))    j.at("classes").get_to(d.classes);
+    if (j.contains("colors"))     j.at("colors").get_to(d.colors);
+    if (j.contains("scene_map"))  j.at("scene_map").get_to(d.scene_map);
+}
+
+// ---- AIConfig 序列化（嵌套 segmentation + detection） ----
+
+inline void to_json(json& j, const AIConfig& c) {
+    j = json{
+        {"segmentation", c.segmentation},
+        {"detection",    c.detection},
+        {"ocr_model_path", c.ocr_model_path},
+    };
+}
+
+inline void from_json(const json& j, AIConfig& c) {
+    if (j.contains("segmentation")) j.at("segmentation").get_to(c.segmentation);
+    if (j.contains("detection"))    j.at("detection").get_to(c.detection);
+    if (j.contains("ocr_model_path")) j.at("ocr_model_path").get_to(c.ocr_model_path);
+}
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(UartConfig,
     port, baud, pwm_neutral)
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(HttpStreamConfig,
     port, jpeg_quality, enable)
+
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(FrameCropConfig,
+    enable, x, y, w, h)
 
 inline void to_json(json& j, const CalibConfig& c) {
     j = json {
@@ -86,13 +149,14 @@ inline void from_json(const json& j, CalibConfig& c) {
 
 inline void to_json(json& j, const AppConfig& c) {
     j = json {
-        {"debug_mode", c.debug_mode},
-        {"shm_name",   c.shm_name},
-        {"shm_size",   c.shm_size},
-        {"control",    c.control},
-        {"ai",         c.ai},
-        {"calib",      c.calib},
-        {"uart",       c.uart},
+        {"debug_mode",  c.debug_mode},
+        {"shm_name",    c.shm_name},
+        {"shm_size",    c.shm_size},
+        {"frame_crop",  c.frame_crop},
+        {"control",     c.control},
+        {"ai",          c.ai},
+        {"calib",       c.calib},
+        {"uart",        c.uart},
         {"http_stream", c.http_stream}
     };
 }
@@ -101,6 +165,7 @@ inline void from_json(const json& j, AppConfig& c) {
     j.at("debug_mode").get_to(c.debug_mode);
     j.at("shm_name").get_to(c.shm_name);
     j.at("shm_size").get_to(c.shm_size);
+    if (j.contains("frame_crop")) j.at("frame_crop").get_to(c.frame_crop);
     j.at("control").get_to(c.control);
     if (j.contains("ai"))     j.at("ai").get_to(c.ai);
     if (j.contains("calib"))  j.at("calib").get_to(c.calib);

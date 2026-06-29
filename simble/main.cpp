@@ -45,6 +45,10 @@ struct SimbleConfig {
     float detection_score_thresh = 0.3f;   // 置信度阈值
     float detection_nms_thresh = 0.65f;     // NMS IoU 阈值
     bool enable_detection = false;          // 是否启用目标检测
+    // 检测类别配置
+    int detection_class_num = 0;
+    std::vector<std::string> detection_classes;
+    std::vector<std::vector<int>> detection_colors;
     // 车辆物理参数（路径规划用）
     float car_length = 0.316f;
     float car_cy_ratio = 0.95f;
@@ -55,6 +59,14 @@ struct SimbleConfig {
     int bird_height = 480;
     float ppm_x = 0.0f;  // X方向像素/米
     float ppm_y = 0.0f;  // Y方向像素/米
+    // 帧裁剪（flip之后、预处理之前）
+    struct FrameCrop {
+        bool enable = false;
+        int x = 0;
+        int y = 240;
+        int w = 640;
+        int h = 240;
+    } frame_crop;
     // HTTP推流参数
     int http_port = 5001;           // HTTP服务器端口
     int jpeg_quality = 80;          // JPEG编码质量（1-100）
@@ -83,6 +95,9 @@ static bool loadConfig(const std::string& path, SimbleConfig& cfg) {
             if (det.contains("score_thresh")) cfg.detection_score_thresh = det["score_thresh"];
             if (det.contains("nms_thresh")) cfg.detection_nms_thresh = det["nms_thresh"];
             if (det.contains("enable")) cfg.enable_detection = det["enable"];
+            if (det.contains("class_num")) cfg.detection_class_num = det["class_num"];
+            if (det.contains("classes")) det["classes"].get_to(cfg.detection_classes);
+            if (det.contains("colors")) det["colors"].get_to(cfg.detection_colors);
         }
         if (j.contains("car_length")) cfg.car_length = j["car_length"];
         if (j.contains("car_cy_ratio")) cfg.car_cy_ratio = j["car_cy_ratio"];
@@ -99,6 +114,15 @@ static bool loadConfig(const std::string& path, SimbleConfig& cfg) {
             if (calib.contains("bird_height")) cfg.bird_height = calib["bird_height"];
             if (calib.contains("ppm_x")) cfg.ppm_x = calib["ppm_x"];
             if (calib.contains("ppm_y")) cfg.ppm_y = calib["ppm_y"];
+        }
+        // 读取帧裁剪配置
+        if (j.contains("frame_crop")) {
+            auto fc = j["frame_crop"];
+            if (fc.contains("enable")) cfg.frame_crop.enable = fc["enable"];
+            if (fc.contains("x")) cfg.frame_crop.x = fc["x"];
+            if (fc.contains("y")) cfg.frame_crop.y = fc["y"];
+            if (fc.contains("w")) cfg.frame_crop.w = fc["w"];
+            if (fc.contains("h")) cfg.frame_crop.h = fc["h"];
         }
         // 读取HTTP推流配置
         if (j.contains("http_stream")) {
@@ -280,22 +304,27 @@ static bool runInference(rknn_context ctx, const cv::Mat& input,
     return true;
 }
 
+// ============================================================================
+// 分割后处理 — argmax + 贴回原图坐标
+// ============================================================================
 static cv::Mat postprocessSeg(const std::vector<cv::Mat>& outputs,
-                              int orig_w, int orig_h, int model_w, int model_h) {
+                              int model_w, int model_h,
+                              int frame_w, int frame_h) {
     const cv::Mat& out = outputs[0];
     const float* ch0 = out.ptr<float>(0);
     const float* ch1 = out.ptr<float>(1);
 
-    cv::Mat mask(model_h, model_w, CV_8UC1);
+    // argmax：ch0=背景, ch1=赛道
+    cv::Mat seg_mask(model_h, model_w, CV_8UC1);
     const int total = model_w * model_h;
     for (int i = 0; i < total; ++i) {
-        mask.data[i] = (ch0[i] >= ch1[i]) ? 0 : 1;
+        seg_mask.data[i] = (ch0[i] >= ch1[i]) ? 0 : 1;
     }
 
-    cv::Mat mask_resized;
-    cv::resize(mask, mask_resized, cv::Size(orig_w, orig_h),
-               0, 0, cv::INTER_NEAREST);
-    return mask_resized;
+    // resize 回工作帧尺寸
+    cv::Mat mask;
+    cv::resize(seg_mask, mask, cv::Size(frame_w, frame_h), 0, 0, cv::INTER_NEAREST);
+    return mask;
 }
 
 // ============================================================================
@@ -387,22 +416,24 @@ void drawHUD(cv::Mat& frame, uint64_t frame_id, int n_centers,
 }
 
 // 绘制目标检测结果
-void drawDetections(cv::Mat& frame, const std::vector<ppyoloe::Detection>& detections) {
+void drawDetections(cv::Mat& frame, const std::vector<ppyoloe::Detection>& detections,
+                    int class_num, const std::vector<std::string>& class_names,
+                    const std::vector<std::vector<int>>& colors) {
+    if (class_num <= 0) return;
     for (const auto& det : detections) {
         int x1 = static_cast<int>(det.x1);
         int y1 = static_cast<int>(det.y1);
         int x2 = static_cast<int>(det.x2);
         int y2 = static_cast<int>(det.y2);
         int cls_id = det.class_id;
+        if (cls_id < 0 || cls_id >= class_num) continue;
 
-        cv::Scalar color(ppyoloe::COLORS_BGR[cls_id % ppyoloe::NUM_CLASSES][0],
-                         ppyoloe::COLORS_BGR[cls_id % ppyoloe::NUM_CLASSES][1],
-                         ppyoloe::COLORS_BGR[cls_id % ppyoloe::NUM_CLASSES][2]);
+        cv::Scalar color(colors[cls_id][0], colors[cls_id][1], colors[cls_id][2]);
 
         cv::rectangle(frame, cv::Point(x1, y1), cv::Point(x2, y2), color, 2);
 
         char label[64];
-        snprintf(label, sizeof(label), "%s %.2f", det.className(), det.score);
+        snprintf(label, sizeof(label), "%s %.2f", class_names[cls_id].c_str(), det.score);
         int baseline = 0;
         cv::Size text_sz = cv::getTextSize(label, cv::FONT_HERSHEY_SIMPLEX, 0.5f, 1, &baseline);
 
@@ -433,7 +464,21 @@ int main(int argc, char* argv[]) {
     signal(SIGINT, signalHandler);
     signal(SIGTERM, signalHandler);
 
-    const char* config_path = (argc > 1) ? argv[1] : "config.json";
+    // ---- 解析命令行参数 ----
+    const char* config_path = "config.json";
+    const char* image_path  = nullptr;
+    const char* output_path = nullptr;
+
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--image" || arg == "-i") {
+            if (i + 1 < argc) image_path = argv[++i];
+        } else if (arg == "--output" || arg == "-o") {
+            if (i + 1 < argc) output_path = argv[++i];
+        } else if (arg[0] != '-') {
+            config_path = argv[i];  // 位置参数: 配置文件
+        }
+    }
     std::cout << "= simble_test: 语义分割 + 目标检测 + 路径规划一体化测试 =" << std::endl;
     std::cout << "配置文件: " << config_path << std::endl;
 
@@ -471,6 +516,13 @@ int main(int argc, char* argv[]) {
     if (cfg.enable_http_stream) {
         std::cout << "HTTP端口: " << cfg.http_port << std::endl;
         std::cout << "JPEG质量: " << cfg.jpeg_quality << std::endl;
+    }
+    if (cfg.frame_crop.enable) {
+        std::cout << "帧裁剪: 启用 "
+                  << "x=" << cfg.frame_crop.x << " y=" << cfg.frame_crop.y
+                  << " w=" << cfg.frame_crop.w << " h=" << cfg.frame_crop.h << std::endl;
+    } else {
+        std::cout << "帧裁剪: 禁用" << std::endl;
     }
     std::cout << "目标检测: " << (cfg.enable_detection ? "启用" : "禁用") << std::endl;
     if (cfg.enable_detection) {
@@ -542,7 +594,135 @@ int main(int argc, char* argv[]) {
     }
 
     // ===================================================
-    // 4. 打开共享内存
+    // 4. 图片推理模式（--image）
+    // ===================================================
+    if (image_path) {
+        std::cout << "\n= 图片推理模式 =" << std::endl;
+        std::cout << "输入图片: " << image_path << std::endl;
+
+        cv::Mat frame = cv::imread(image_path, cv::IMREAD_COLOR);
+        if (frame.empty()) {
+            std::cerr << "[错误] 无法读取图片: " << image_path << std::endl;
+            rknn_destroy(rknn_ctx);
+            if (det_ctx != 0) rknn_destroy(det_ctx);
+            return 1;
+        }
+        uint32_t w_img = frame.cols;
+        uint32_t h_img = frame.rows;
+        std::cout << "图片尺寸: " << w_img << "x" << h_img << std::endl;
+
+        // cv::imread 是 BGR，转 RGB（与共享内存数据格式一致）
+        cv::cvtColor(frame, frame, cv::COLOR_BGR2RGB);
+
+        // 垂直翻转（与流模式一致）
+        cv::flip(frame, frame, 0);
+
+        // 帧裁剪
+        if (cfg.frame_crop.enable) {
+            cv::Rect crop_rc(cfg.frame_crop.x, cfg.frame_crop.y,
+                             cfg.frame_crop.w, cfg.frame_crop.h);
+            frame = frame(crop_rc).clone();
+            w_img = static_cast<uint32_t>(cfg.frame_crop.w);
+            h_img = static_cast<uint32_t>(cfg.frame_crop.h);
+            std::cout << "裁剪后尺寸: " << w_img << "x" << h_img << std::endl;
+        }
+
+        // ---- 语义分割 ----
+        cv::Mat mask;
+        if (cfg.enable_segmentation && rknn_ctx != 0) {
+            cv::Mat input;
+            cv::resize(frame, input, cv::Size(model_w, model_h));
+
+            std::vector<cv::Mat> outputs;
+            int64_t infer_us = 0;
+            if (runInference(rknn_ctx, input, outputs, &infer_us, output_attrs, n_outputs)) {
+                mask = postprocessSeg(outputs, model_w, model_h,
+                                      static_cast<int>(w_img), static_cast<int>(h_img));
+                std::cout << "[分割] 推理耗时: " << (infer_us / 1000.0f) << " ms" << std::endl;
+            }
+        }
+
+        // ---- 目标检测 ----
+        std::vector<ppyoloe::Detection> detections;
+        if (cfg.enable_detection && det_ctx != 0) {
+            cv::Mat det_input;
+            cv::resize(frame, det_input, cv::Size(det_model_w, det_model_h));
+
+            std::vector<cv::Mat> det_outputs;
+            int64_t det_infer_us = 0;
+            if (runInference(det_ctx, det_input, det_outputs, &det_infer_us,
+                             det_output_attrs, det_n_outputs)) {
+                if (det_outputs.size() >= 2) {
+                    detections = ppyoloe::postprocess(
+                        det_outputs[0].ptr<float>(0), det_outputs[1].ptr<float>(0),
+                        static_cast<int>(w_img), static_cast<int>(h_img),
+                        static_cast<int>(h_img), 0,
+                        cfg.detection_score_thresh, cfg.detection_nms_thresh);
+                }
+                std::cout << "[检测] " << detections.size() << " 个目标, "
+                          << (det_infer_us / 1000.0f) << " ms" << std::endl;
+            }
+        }
+
+        // ---- 构建可视化 ----
+        cv::Mat display = frame.clone();
+        if (!mask.empty()) drawSegOverlay(display, mask);
+        if (!detections.empty()) drawDetections(display, detections,
+            cfg.detection_class_num, cfg.detection_classes, cfg.detection_colors);
+
+        // 鸟瞰图
+        cv::Mat bird_color;
+        if (!mask.empty()) {
+            cv::Mat bird_mask = perspective.warp(mask);
+            bird_color = cv::Mat(bird_mask.rows, bird_mask.cols, CV_8UC3);
+            bird_color.setTo(cv::Scalar(30, 30, 30));
+            bird_color.setTo(cv::Scalar(0, 200, 0), bird_mask);
+
+            std::vector<cv::Point2f> centers;
+            pathplan::extractCenterline(bird_mask, centers);
+            pathplan::smoothCenterline(centers);
+
+            cv::Point2f aim_pt;
+            float cx = static_cast<float>(bird_mask.cols) * 0.5f;
+            float cy = static_cast<float>(bird_mask.rows) * cfg.car_cy_ratio;
+            if (!centers.empty()) {
+                pathplan::findLookAhead(centers, cx, cy, cfg.aim_dist_near,
+                                       cfg.ppm_x, cfg.ppm_y, aim_pt);
+                drawPathplan(bird_color, centers, aim_pt, cx, cy);
+            }
+        }
+
+        cv::Mat top;
+        if (!bird_color.empty()) {
+            int target_h = display.rows;
+            if (bird_color.rows != target_h) {
+                cv::resize(bird_color, bird_color, cv::Size(
+                    static_cast<int>(static_cast<float>(bird_color.cols) * target_h / bird_color.rows),
+                    target_h));
+            }
+            cv::hconcat(display, bird_color, top);
+        } else {
+            top = display;
+        }
+        drawHUD(top, 0, 0, 0.0f, 0.0f, 0.0f,
+                static_cast<int>(detections.size()), 0.0f);
+
+        // ---- 保存结果 ----
+        std::string out_path = output_path ? output_path : "simble_result.jpg";
+        cv::Mat top_bgr;
+        cv::cvtColor(top, top_bgr, cv::COLOR_RGB2BGR);
+        cv::imwrite(out_path, top_bgr);
+        std::cout << "结果已保存: " << out_path << std::endl;
+
+        // 清理
+        rknn_destroy(rknn_ctx);
+        if (det_ctx != 0) rknn_destroy(det_ctx);
+        std::cout << "[退出] 图片推理完成" << std::endl;
+        return 0;
+    }
+
+    // ===================================================
+    // 5. 打开共享内存
     // ===================================================
     SharedMemory shm;
     std::cout << "\n[共享内存] 等待连接: " << cfg.shm_name << std::endl;
@@ -555,7 +735,7 @@ int main(int argc, char* argv[]) {
     }
 
     // ===================================================
-    // 5. 启动HTTP推流服务器
+    // 6. 启动HTTP推流服务器
     // ===================================================
     HttpStreamServer* http_server = nullptr;
     if (cfg.enable_http_stream) {
@@ -570,7 +750,7 @@ int main(int argc, char* argv[]) {
     }
 
     // ===================================================
-    // 6. 主循环
+    // 7. 主循环
     // ===================================================
     uint64_t frame_counter = 0;
     uint64_t last_fid = 0;
@@ -620,11 +800,20 @@ int main(int argc, char* argv[]) {
 
         frame_counter++;
 
+        // ---- 帧裁剪（flip之后、预处理之前） ----
+        if (cfg.frame_crop.enable) {
+            cv::Rect crop(cfg.frame_crop.x, cfg.frame_crop.y,
+                          cfg.frame_crop.w, cfg.frame_crop.h);
+            frame = frame(crop).clone();  // clone确保内存连续
+            w = cfg.frame_crop.w;
+            h = cfg.frame_crop.h;
+        }
+
         // ---- 语义分割 ----
         cv::Mat mask;
         float seg_ms = 0.0f;
         if (cfg.enable_segmentation && rknn_ctx != 0) {
-            // 预处理：frame已是RGB，直接resize
+            // 预处理：resize 到模型输入尺寸
             cv::Mat input;
             cv::resize(frame, input, cv::Size(model_w, model_h));
 
@@ -636,19 +825,17 @@ int main(int argc, char* argv[]) {
             }
             seg_ms = infer_us / 1000.0f;
 
-            // 后处理：argmax得到mask
-            mask = postprocessSeg(outputs, w, h, model_w, model_h);
+            // 后处理：argmax → resize 回工作帧尺寸
+            mask = postprocessSeg(outputs, model_w, model_h,
+                                  static_cast<int>(w), static_cast<int>(h));
         }
 
         // ---- 目标检测（PP-YOLOE） ----
         float det_ms = 0.0f;
         if (cfg.enable_detection && det_ctx != 0) {
-            // 预处理：frame已是RGB，直接中心裁剪一半高度 + resize
-            int crop_h = static_cast<int>(h) / 2;
-            int crop_top = (static_cast<int>(h) - crop_h) / 2;
-            cv::Rect crop_rect(0, crop_top, static_cast<int>(w), crop_h);
+            // 预处理：resize 到检测模型输入尺寸
             cv::Mat det_input;
-            cv::resize(frame(crop_rect), det_input, cv::Size(det_model_w, det_model_h));
+            cv::resize(frame, det_input, cv::Size(det_model_w, det_model_h));
 
             // NPU推理
             std::vector<cv::Mat> det_outputs;
@@ -657,15 +844,13 @@ int main(int argc, char* argv[]) {
                              det_output_attrs, det_n_outputs)) {
                 det_ms = det_infer_us / 1000.0f;
 
-                // 后处理
-                // det_outputs[0]: cls (12, 3360) float32
-                // det_outputs[1]: reg (3360, 4)  float32
+                // 后处理：坐标映射到工作帧（全帧，无额外裁剪）
                 if (det_outputs.size() >= 2) {
                     detections = ppyoloe::postprocess(
                         det_outputs[0].ptr<float>(0),  // cls_data
                         det_outputs[1].ptr<float>(0),  // reg_data
                         static_cast<int>(w), static_cast<int>(h),
-                        crop_h, crop_top,
+                        static_cast<int>(h), 0,        // 全帧: crop_h=h, crop_top=0
                         cfg.detection_score_thresh, cfg.detection_nms_thresh);
                 }
             }
@@ -733,7 +918,8 @@ int main(int argc, char* argv[]) {
         }
         // 检测框（仅启用且有结果时）
         if (cfg.enable_detection && !detections.empty()) {
-            drawDetections(display, detections);
+            drawDetections(display, detections,
+                cfg.detection_class_num, cfg.detection_classes, cfg.detection_colors);
         }
 
         cv::Mat top;
@@ -763,7 +949,7 @@ int main(int argc, char* argv[]) {
     }
 
     // ===================================================
-    // 7. 清理退出
+    // 8. 清理退出
     // ===================================================
     if (http_server) {
         http_server->stop();

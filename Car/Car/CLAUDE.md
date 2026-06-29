@@ -84,13 +84,7 @@ if (debug) launchTask("DisplayTask");
 
 ## 独立测试工具
 
-`seg/` 目录包含独立的语义分割测试程序，不依赖 Car 框架：
-
-```bash
-cd seg && mkdir -p build && cd build && cmake .. && make
-./seg_test <图片路径> [模型路径]
-# 输出: 原图 | 分割掩码 | 叠加 三栏拼接图
-```
+语义分割已完全集成到 `simble_test` 和 `car` 主程序中，不再提供独立的 `seg_test` 工具。
 
 ## 同步文档
 

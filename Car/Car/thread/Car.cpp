@@ -18,6 +18,9 @@ bool Car::init(int argc, char* argv[]) {
         ctx_.thread_pool = thread_pool_.get();
     }
 
+    // 转向方向（AR图像左右镜像时取反）
+    ctx_.steering_dir = ctx_.config.control.steering_invert ? -1.0f : 1.0f;
+
     // 初始化透视变换（若无标定数据则不生效）
     const auto& c = ctx_.config.calib;
     ctx_.perspective.init(c.src_quad, c.bird_width, c.bird_height);

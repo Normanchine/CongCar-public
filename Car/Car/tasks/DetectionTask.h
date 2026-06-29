@@ -11,4 +11,5 @@ public:
 
 private:
     uint64_t frame_counter_ = 0;
+    int det_lost_frames_ = 0;  // 连续丢检测帧计数
 };

@@ -17,50 +17,55 @@ SegmentationTask::SegmentationTask(SharedContext* ctx) : IThreadTask(ctx) {}
 SegmentationTask::~SegmentationTask() = default;
 
 void SegmentationTask::run() {
-    RKNNEngine engine;
-    const auto& ai = ctx_->config.ai;
+    const auto& seg_cfg = ctx_->config.ai.segmentation;
 
-    if (!engine.load(ai.segmentation_model_path, 2)) {
-        std::cerr << "[SegTask] 模型加载失败" << std::endl;
+    // 双引擎：Core1 + Core2 交替推理
+    RKNNEngine eng_a, eng_b;
+    if (!eng_a.load(seg_cfg.model_path, 1)) {
+        std::cerr << "[SegTask] eng_a(Core1) 加载失败" << std::endl;
+        return;
+    }
+    if (!eng_b.load(seg_cfg.model_path, 2)) {
+        std::cerr << "[SegTask] eng_b(Core2) 加载失败" << std::endl;
         return;
     }
 
-    std::cout << "[SegTask] 已启动" << std::endl;
-
-    const int seg_w = engine.inputWidth();
-    const int seg_h = engine.inputHeight();
+    const int seg_w = eng_a.inputWidth();
+    const int seg_h = eng_a.inputHeight();
     const int seg_n = seg_w * seg_h;
 
-    // 首帧预提交
-    cv::Mat input;
-    while (!ctx_->stop.load(std::memory_order_acquire)) {
-        if (ctx_->segmentation_queue.tryConsume(input)) break;
-        std::this_thread::sleep_for(std::chrono::microseconds(500));
-    }
-    if (ctx_->stop.load(std::memory_order_acquire)) return;
+    std::cout << "[SegTask] 双核已启动 (Core1+Core2)" << std::endl;
 
-    auto future = engine.submit(std::move(input));
+    // 首两帧预提交（A先, B后）
+    cv::Mat input;
+    auto consume = [&]() -> bool {
+        while (!ctx_->stop.load(std::memory_order_acquire))
+            if (ctx_->segmentation_queue.tryConsume(input)) return true;
+            else std::this_thread::sleep_for(std::chrono::microseconds(500));
+        return false;
+    };
+
+    if (!consume()) return;
+    auto fut_a = eng_a.submit(std::move(input));
+    if (!consume()) return;
+    auto fut_b = eng_b.submit(std::move(input));
 
     uint64_t frame_counter = 0;
+    bool toggle = false;  // false→get A, true→get B
 
     while (!ctx_->stop.load(std::memory_order_acquire)) {
 
-        cv::Mat next_input;
-        bool has_frame = false;
-        while (!ctx_->stop.load(std::memory_order_acquire)) {
-            if (ctx_->segmentation_queue.tryConsume(next_input)) {
-                has_frame = true;
-                break;
-            }
-            std::this_thread::sleep_for(std::chrono::microseconds(500));
-        }
-        if (!has_frame) break;
+        if (!consume()) break;
 
         auto t_start = std::chrono::steady_clock::now();
 
-        auto [outputs, infer_us] = future.get();  // 纯 rknn_run 耗时
+        // 交替：偶数帧取A结果+提交A，奇数帧取B结果+提交B
+        auto& eng    = toggle ? eng_b    : eng_a;
+        auto& fut    = toggle ? fut_b    : fut_a;
+        toggle = !toggle;
 
-        future = engine.submit(std::move(next_input));
+        auto [outputs, infer_us] = fut.get();
+        fut = eng.submit(std::move(input));
 
         auto t_post_start = std::chrono::steady_clock::now();
 
@@ -68,7 +73,6 @@ void SegmentationTask::run() {
             int orig_w = ctx_->frame_width.load(std::memory_order_acquire);
             int orig_h = ctx_->frame_height.load(std::memory_order_acquire);
 
-            // argmax: output shape (2, seg_n) CV_32FC1 — ch0=背景, ch1=赛道
             const cv::Mat& out = outputs[0];
             const float* ch0 = out.ptr<float>(0);
             const float* ch1 = out.ptr<float>(1);
@@ -87,7 +91,7 @@ void SegmentationTask::run() {
             result.height    = orig_h;
             result.frame_id  = ++frame_counter;
             ctx_->seg_result.publish(std::move(result));
-            ctx_->seg_cv_.notify_one();  // 唤醒 ControlTask
+            ctx_->seg_cv_.notify_one();
         }
 
         auto t_end = std::chrono::steady_clock::now();
@@ -96,5 +100,5 @@ void SegmentationTask::run() {
         ctx_->perf_stats.recordStages(SLOT_SEGMENTATION, total_us, infer_us, post_us);
     }
 
-    std::cout << "[SegTask] 已退出" << std::endl;
+    std::cout << "[SegTask] 双核已退出" << std::endl;
 }

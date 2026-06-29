@@ -45,16 +45,32 @@ void drawSegmentation(cv::Mat& frame, const SegResult& seg) {
 }
 
 // ---- 绘制检测框 ----
-void drawDetections(cv::Mat& frame, const DetResult& det) {
+void drawDetections(cv::Mat& frame, const DetResult& det, const DetectionConfig& det_cfg) {
+    int num = det_cfg.class_num;
+    if (num <= 0) return;
+    const auto& names  = det_cfg.classes;
+    const auto& colors = det_cfg.colors;
+
     for (const auto& box : det.boxes) {
-        auto p1 = cv::Point(static_cast<int>(box.x1), static_cast<int>(box.y1));
-        auto p2 = cv::Point(static_cast<int>(box.x2), static_cast<int>(box.y2));
-        cv::rectangle(frame, p1, p2, kBoxColor, 2);
-        std::ostringstream oss;
-        oss << box.class_id << " " << std::fixed << std::setprecision(2) << box.confidence;
-        cv::putText(frame, oss.str(),
-                    cv::Point(p1.x, p1.y - 5),
-                    cv::FONT_HERSHEY_SIMPLEX, 0.5, kLabelColor, 2);
+        int x1 = static_cast<int>(box.x1);
+        int y1 = static_cast<int>(box.y1);
+        int x2 = static_cast<int>(box.x2);
+        int y2 = static_cast<int>(box.y2);
+        int cls = box.class_id;
+        if (cls < 0 || cls >= num) continue;
+
+        cv::Scalar color(colors[cls][0], colors[cls][1], colors[cls][2]);
+
+        cv::rectangle(frame, cv::Point(x1, y1), cv::Point(x2, y2), color, 2);
+
+        char label[64];
+        snprintf(label, sizeof(label), "%s %.2f", names[cls].c_str(), box.confidence);
+        int baseline = 0;
+        cv::Size text_sz = cv::getTextSize(label, cv::FONT_HERSHEY_SIMPLEX, 0.5f, 1, &baseline);
+        cv::rectangle(frame, cv::Point(x1, y1 - text_sz.height - 4),
+                      cv::Point(x1 + text_sz.width + 4, y1), color, -1);
+        cv::putText(frame, label, cv::Point(x1 + 2, y1 - 2),
+                    cv::FONT_HERSHEY_SIMPLEX, 0.5f, cv::Scalar(255, 255, 255), 1);
     }
 }
 
@@ -154,7 +170,7 @@ void DisplayTask::run() {
 
             auto det = ctx_->det_result.get();
             if (det && !det->boxes.empty()) {
-                drawDetections(display, *det);
+                drawDetections(display, *det, ctx_->config.ai.detection);
             }
 
             // ---- 2. 右侧：鸟瞰图（赛道mask + 中线 + 前视点） ----
@@ -173,6 +189,8 @@ void DisplayTask::run() {
                     bird_color.setTo(kBirdBg);
                 }
             }
+            // BGR→RGB，与左侧display统一色域后再拼接
+            cv::cvtColor(bird_color, bird_color, cv::COLOR_BGR2RGB);
 
             // ---- 3. 水平拼接：左(原图+分割+检测) | 右(鸟瞰图) ----
             int target_h = display.rows;

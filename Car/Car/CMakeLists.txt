@@ -13,7 +13,9 @@ include_directories(${CMAKE_SOURCE_DIR})
 add_executable(car
     main.cpp
     thread/Car.cpp
-    scene/NormalScene.cpp
+    scene/scenes/NormalScene.cpp
+    scene/scenes/CarScene.cpp
+    scene/scenes/PersonScene.cpp
     hal/memory/shared_memory_manager.cpp
     hal/uart/UartIO.cpp
     common/PerfStats.cpp

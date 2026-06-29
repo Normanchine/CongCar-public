@@ -139,7 +139,10 @@ void RKNNEngine::workerLoop() {
                 outputs[i] = cv::Mat(channels, rows * cols, CV_32FC1,
                                      rk_outs[i].buf).clone();
             } else if (attr.n_dims == 3) {
-                outputs[i] = cv::Mat(rows, cols, CV_32FC1,
+                // 3D tensor: [batch, dim1, dim2] → Mat(dim1, dim2)
+                int dim1 = static_cast<int>(attr.dims[1]);
+                int dim2 = static_cast<int>(attr.dims[2]);
+                outputs[i] = cv::Mat(dim1, dim2, CV_32FC1,
                                      rk_outs[i].buf).clone();
             } else {
                 outputs[i] = cv::Mat(1, static_cast<int>(attr.n_elems),

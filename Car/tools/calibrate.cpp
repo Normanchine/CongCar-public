@@ -299,9 +299,27 @@ int main(int argc, char* argv[]) {
     std::string config_path;
     std::string shm_name = "shm_ar_video";
     size_t shm_size = 10 * 1024 * 1024;
+    bool crop_enabled = false;
+    int crop_x = 0, crop_y = 0, crop_w = 0, crop_h = 0;
 
     // 解析参数
-    if (argc < 2) {
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--crop" && i + 1 < argc) {
+            std::string crop_str = argv[++i];
+            sscanf(crop_str.c_str(), "%d,%d,%d,%d", &crop_x, &crop_y, &crop_w, &crop_h);
+            crop_enabled = true;
+        }
+    }
+    // 过滤掉 --crop 相关参数，获取图片/config路径
+    std::vector<std::string> positional;
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--crop") { ++i; continue; }
+        positional.push_back(arg);
+    }
+
+    if (positional.empty()) {
         // 无参数：从共享内存读取
         std::cout << "\n[模式] 从共享内存读取实时帧" << std::endl;
         std::cout << "共享内存: " << shm_name << std::endl;
@@ -313,9 +331,9 @@ int main(int argc, char* argv[]) {
         }
         std::cout << "已获取帧: " << image.cols << " x " << image.rows << std::endl;
 
-    } else if (argc == 2) {
+    } else if (positional.size() == 1) {
         // 一个参数：可能是图片路径或config路径
-        std::string arg1 = argv[1];
+        std::string arg1 = positional[0];
 
         // 判断是图片还是json
         if (arg1.find(".json") != std::string::npos ||
@@ -358,8 +376,8 @@ int main(int argc, char* argv[]) {
 
     } else {
         // 两个参数：图片路径 + config路径
-        std::string image_path = argv[1];
-        config_path = argv[2];
+        std::string image_path = positional[0];
+        config_path = positional[1];
 
         std::cout << "\n[模式] 从图片文件读取" << std::endl;
         std::cout << "图片: " << image_path << std::endl;
@@ -375,6 +393,17 @@ int main(int argc, char* argv[]) {
     int img_w = image.cols;
     int img_h = image.rows;
     std::cout << "图片尺寸: " << img_w << " x " << img_h << std::endl;
+
+    // 裁剪图像（标定在工作帧上做，坐标天然匹配）
+    if (crop_enabled) {
+        cv::Rect crop_rc(crop_x, crop_y, crop_w, crop_h);
+        image = image(crop_rc).clone();
+        img_w = image.cols;
+        img_h = image.rows;
+        std::cout << "裁剪至: " << img_w << " x " << img_h
+                  << " (crop " << crop_x << "," << crop_y
+                  << " " << crop_w << "x" << crop_h << ")" << std::endl;
+    }
 
     std::vector<cv::Point2f> src_pts;
     int bird_w = 640, bird_h = 480;

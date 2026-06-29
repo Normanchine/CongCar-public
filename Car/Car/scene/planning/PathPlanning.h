@@ -96,7 +96,7 @@ inline bool findLookAhead(const std::vector<cv::Point2f>& centers,
     // 从最近点沿中线累加距离（米）
     float accum = 0.0f;
     cv::Point2f prev = centers[best_i];
-    for (int i = best_i + 1; i < static_cast<int>(centers.size()); ++i) {
+    for (int i = best_i - 1; i >= 0; --i) {
         float dy = (centers[i].y - prev.y) / ppm_y;
         float dx = (centers[i].x - prev.x) / ppm_x;
         accum += std::sqrt(dx * dx + dy * dy);
@@ -107,7 +107,7 @@ inline bool findLookAhead(const std::vector<cv::Point2f>& centers,
         prev = centers[i];
     }
 
-    out = centers.back();
+    out = centers.front();
     return true;
 }
 

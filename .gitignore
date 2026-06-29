@@ -1,8 +1,6 @@
 # 构建产物
 build/
 Car/build/
-seg/build/
-
 # Python
 __pycache__/
 *.pyc
@@ -21,17 +19,13 @@ compile_commands.json
 
 # 临时/草稿文件
 Car/TODO.md
-SKILL.md
-Untitled.md
-car.md
 infer_test.txt
-seg_test.txt
-上位机模板.md
 Car/Car/CLAUDE.md
 result/
 simble/滤波使用说明.md
 过渡文件/
-
+.codegraph/
+.idea/
 # 系统
 .DS_Store
 Thumbs.db
