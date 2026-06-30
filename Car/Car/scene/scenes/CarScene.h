@@ -12,4 +12,5 @@ public:
 
 private:
     PathFollower follower_;
+    int car_class_id_ = -1;   // 首次运行时从config查找
 };
