@@ -24,6 +24,16 @@
         "max_speed": 0.7,
         "pid_p": 0.7,
         "pid_d": 0.6
+      },
+      "CarScene": {
+        "max_speed": 0.7,
+        "pid_p": 0.7,
+        "pid_d": 0.6
+      },
+      "PersonScene": {
+        "max_speed": 0.7,
+        "pid_p": 0.7,
+        "pid_d": 0.6
       }
     }
   },

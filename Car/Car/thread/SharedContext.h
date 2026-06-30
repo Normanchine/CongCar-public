@@ -74,6 +74,7 @@ struct SharedContext {
     // ---- 控制输出 ----
     std::atomic<float> steering_pwm{1500};   // 舵机PWM (500-2500, 中值1500)
     std::atomic<float> target_speed{0};      // 目标速度
+    std::atomic<float> last_error{0};        // 跨场景error继承（防PD脉冲）
     float steering_dir = 1.0f;               // 转向方向（AR图像左右镜像时置-1）
 
     // ---- 透视变换 ----

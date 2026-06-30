@@ -5,5 +5,8 @@
 REGISTER_SCENE(CarScene)
 
 void CarScene::run(SharedContext* ctx) {
-    // TODO: car检测到后的行为
+    auto seg = ctx->seg_result.get();
+    if (!seg || seg->mask.empty()) return;
+
+    follower_.process(seg->mask, ctx);
 }

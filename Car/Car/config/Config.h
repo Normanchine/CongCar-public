@@ -28,7 +28,7 @@ struct ControlConfig {
 
     // ---- 丢线容错 ----
     int   max_lost_frames   = 5;       // 最大盲开帧数
-    float coast_steer_step  = 200.0f;  // 盲开每帧舵机偏移量(PWM)
+    float coast_steer_step  = 200.0f;  // 盲开最大搜转偏移量，逐帧递增(PWM)
     float coast_speed_decay = 0.9f;    // 盲开速度衰减系数（每帧乘以此值）
     float speed_recovery_k  = 0.3f;    // 加速恢复系数（0-1，越大恢复越快，1=瞬时）
 

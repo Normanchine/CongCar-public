@@ -1,12 +1,15 @@
 #pragma once
 
 #include "../framework/IScene.h"
+#include "../planning/PathFollower.h"
 
-// 检测到person时触发的场景
 class PersonScene : public IScene {
 public:
     PersonScene() = default;
     ~PersonScene() override = default;
 
     void run(SharedContext* ctx) override;
+
+private:
+    PathFollower follower_;
 };
