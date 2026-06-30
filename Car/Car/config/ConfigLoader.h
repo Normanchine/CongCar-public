@@ -37,6 +37,7 @@ inline void to_json(json& j, const ControlConfig& c) {
         {"coast_steer_step",   c.coast_steer_step},
         {"coast_speed_decay",  c.coast_speed_decay},
         {"speed_recovery_k",   c.speed_recovery_k},
+        {"fork_keep_side",     c.fork_keep_side},
         {"scene",               c.scene}
     };
 }
@@ -56,6 +57,7 @@ inline void from_json(const json& j, ControlConfig& c) {
     if (j.contains("coast_steer_step"))    j.at("coast_steer_step").get_to(c.coast_steer_step);
     if (j.contains("coast_speed_decay"))  j.at("coast_speed_decay").get_to(c.coast_speed_decay);
     if (j.contains("speed_recovery_k"))   j.at("speed_recovery_k").get_to(c.speed_recovery_k);
+    if (j.contains("fork_keep_side"))     j.at("fork_keep_side").get_to(c.fork_keep_side);
     if (j.contains("scene")) j.at("scene").get_to(c.scene);
 }
 

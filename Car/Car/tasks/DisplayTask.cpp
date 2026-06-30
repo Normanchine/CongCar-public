@@ -174,8 +174,8 @@ void DisplayTask::run() {
             }
 
             // ---- 2. 右侧：鸟瞰图（赛道mask + 中线 + 前视点） ----
-            int bird_w = ctx_->perspective.birdW();
-            int bird_h = ctx_->perspective.birdH();
+            int bird_w = ctx_->config.calib.bird_width;
+            int bird_h = ctx_->config.calib.bird_height;
             cv::Mat bird_color(bird_h, bird_w, CV_8UC3);
 
             {
@@ -201,6 +201,40 @@ void DisplayTask::run() {
             }
             cv::Mat combined;
             cv::hconcat(display, bird_color, combined);
+
+            // ---- 3.5 岔路mask对比：处理前 | 处理后 ----
+            {
+                std::lock_guard<std::mutex> lock(ctx_->fork_mtx_);
+                if (ctx_->fork_valid_) {
+                    int mw = 240, mh = static_cast<int>(static_cast<float>(mw)
+                        * ctx_->fork_raw_mask_.rows / ctx_->fork_raw_mask_.cols);
+                    auto renderMask = [&](const cv::Mat& m) -> cv::Mat {
+                        cv::Mat resized, vis;
+                        cv::resize(m, resized, cv::Size(mw, mh), 0, 0, cv::INTER_NEAREST);
+                        vis = cv::Mat(mh, mw, CV_8UC3);
+                        vis.setTo(kBirdBg);
+                        vis.setTo(kBirdTrack, resized);
+                        return vis;
+                    };
+
+                    cv::Mat raw_vis = renderMask(ctx_->fork_raw_mask_);
+                    cv::putText(raw_vis, "raw", cv::Point(4, 14),
+                                cv::FONT_HERSHEY_SIMPLEX, 0.4, kHudText, 1);
+
+                    cv::Mat done_vis = renderMask(ctx_->fork_done_mask_);
+                    cv::putText(done_vis, "done", cv::Point(4, 14),
+                                cv::FONT_HERSHEY_SIMPLEX, 0.4, kHudText, 1);
+
+                    cv::Mat fork_row;
+                    cv::hconcat(raw_vis, done_vis, fork_row);
+                    // 调整宽度与combined一致
+                    if (fork_row.cols != combined.cols) {
+                        cv::resize(fork_row, fork_row,
+                                   cv::Size(combined.cols, fork_row.rows));
+                    }
+                    cv::vconcat(combined, fork_row, combined);
+                }
+            }
 
             // ---- 4. HUD叠加 ----
             drawHUD(combined, ctx_);

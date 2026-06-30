@@ -18,6 +18,7 @@
     "coast_steer_step": 200.0,
     "coast_speed_decay": 0.9,
     "speed_recovery_k": 0.3,
+    "fork_keep_side": 0,
     "scene": {
       "NormalScene": {
         "max_speed": 0.7,

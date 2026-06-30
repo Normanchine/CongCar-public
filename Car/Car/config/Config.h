@@ -32,6 +32,9 @@ struct ControlConfig {
     float coast_speed_decay = 0.9f;    // 盲开速度衰减系数（每帧乘以此值）
     float speed_recovery_k  = 0.3f;    // 加速恢复系数（0-1，越大恢复越快，1=瞬时）
 
+    // ---- 岔路策略 ----
+    int   fork_keep_side    = 0;       // 岔路保留侧：0=左，1=右
+
     // ---- 场景参数 ----
     std::map<std::string, SceneControlParams> scene;
 };

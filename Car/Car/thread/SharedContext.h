@@ -65,6 +65,12 @@ struct SharedContext {
     cv::Point2f              bird_aim_pt_{0, 0};
     bool                     bird_valid_ = false;
 
+    // ---- 岔路调试：处理前后mask对比（NormalScene写，DisplayTask读） ----
+    std::mutex               fork_mtx_;
+    cv::Mat                  fork_raw_mask_;
+    cv::Mat                  fork_done_mask_;
+    bool                     fork_valid_ = false;
+
     // ---- 控制输出 ----
     std::atomic<float> steering_pwm{1500};   // 舵机PWM (500-2500, 中值1500)
     std::atomic<float> target_speed{0};      // 目标速度

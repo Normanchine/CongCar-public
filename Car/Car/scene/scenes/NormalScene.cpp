@@ -12,8 +12,26 @@ void NormalScene::run(SharedContext* ctx) {
     auto seg = ctx->seg_result.get();
     if (!seg || seg->mask.empty()) return;
 
-    // ---- 0. 透视变换到鸟瞰 ----
-    cv::Mat mask = ctx->perspective.warp(seg->mask);
+    // ---- 0. 宽鸟瞰变换 → 岔路处理 → 裁中心区域供路径规划 ----
+    cv::Mat wide_mask = ctx->perspective.warp(seg->mask);
+
+    if (ctx->config.debug_mode) {
+        std::lock_guard<std::mutex> lock(ctx->fork_mtx_);
+        ctx->fork_raw_mask_ = wide_mask.clone();
+    }
+
+    pathplan::handleFork(wide_mask, ctx->config.control.fork_keep_side, 1);
+
+    if (ctx->config.debug_mode) {
+        std::lock_guard<std::mutex> lock(ctx->fork_mtx_);
+        ctx->fork_done_mask_ = wide_mask.clone();
+        ctx->fork_valid_ = true;
+    }
+
+    // 从宽鸟瞰裁出原始标定区域（中心），保持ppm不变
+    int crop_w = ctx->config.calib.bird_width;
+    int offset = (wide_mask.cols - crop_w) / 2;
+    cv::Mat mask = wide_mask(cv::Rect(offset, 0, crop_w, wide_mask.rows)).clone();
     int w = mask.cols, h = mask.rows;
     float ppm_x = ctx->config.calib.ppm_x;
     float ppm_y = ctx->config.calib.ppm_y;
