@@ -84,7 +84,7 @@ if (debug) launchTask("DisplayTask");
 
 ## 独立测试工具
 
-语义分割已完全集成到 `simble_test` 和 `car` 主程序中，不再提供独立的 `seg_test` 工具。
+早期的 simble 测试工具已删除，所有功能已集成到 car 主程序中。
 
 ## 同步文档
 
