@@ -35,6 +35,9 @@ inline void to_json(json& j, const ControlConfig& c) {
         {"lookahead_speed_k",   c.lookahead_speed_k},
         {"max_lost_frames",     c.max_lost_frames},
         {"coast_steer_step",   c.coast_steer_step},
+        {"coast_speed_decay",  c.coast_speed_decay},
+        {"speed_recovery_k",   c.speed_recovery_k},
+        {"fork_keep_side",     c.fork_keep_side},
         {"scene",               c.scene}
     };
 }
@@ -52,6 +55,9 @@ inline void from_json(const json& j, ControlConfig& c) {
     if (j.contains("lookahead_speed_k"))   j.at("lookahead_speed_k").get_to(c.lookahead_speed_k);
     if (j.contains("max_lost_frames"))     j.at("max_lost_frames").get_to(c.max_lost_frames);
     if (j.contains("coast_steer_step"))    j.at("coast_steer_step").get_to(c.coast_steer_step);
+    if (j.contains("coast_speed_decay"))  j.at("coast_speed_decay").get_to(c.coast_speed_decay);
+    if (j.contains("speed_recovery_k"))   j.at("speed_recovery_k").get_to(c.speed_recovery_k);
+    if (j.contains("fork_keep_side"))     j.at("fork_keep_side").get_to(c.fork_keep_side);
     if (j.contains("scene")) j.at("scene").get_to(c.scene);
 }
 
@@ -132,6 +138,7 @@ inline void to_json(json& j, const CalibConfig& c) {
                          c.src_quad[4],c.src_quad[5],c.src_quad[6],c.src_quad[7]}},
         {"bird_width",  c.bird_width},
         {"bird_height", c.bird_height},
+        {"bird_width_scale", c.bird_width_scale},
         {"ppm_x",       c.ppm_x},
         {"ppm_y",       c.ppm_y}
     };
@@ -143,6 +150,7 @@ inline void from_json(const json& j, CalibConfig& c) {
         c.src_quad[i] = arr[i];
     j.at("bird_width").get_to(c.bird_width);
     j.at("bird_height").get_to(c.bird_height);
+    if (j.contains("bird_width_scale")) j.at("bird_width_scale").get_to(c.bird_width_scale);
     j.at("ppm_x").get_to(c.ppm_x);
     j.at("ppm_y").get_to(c.ppm_y);
 }

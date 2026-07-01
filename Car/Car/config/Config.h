@@ -28,7 +28,12 @@ struct ControlConfig {
 
     // ---- 丢线容错 ----
     int   max_lost_frames   = 5;       // 最大盲开帧数
-    float coast_steer_step  = 200.0f;  // 盲开每帧舵机偏移量(PWM)
+    float coast_steer_step  = 200.0f;  // 盲开最大搜转偏移量，逐帧递增(PWM)
+    float coast_speed_decay = 0.9f;    // 盲开速度衰减系数（每帧乘以此值）
+    float speed_recovery_k  = 0.3f;    // 加速恢复系数（0-1，越大恢复越快，1=瞬时）
+
+    // ---- 岔路策略 ----
+    int   fork_keep_side    = 0;       // 岔路保留侧：0=左，1=右
 
     // ---- 场景参数 ----
     std::map<std::string, SceneControlParams> scene;
@@ -68,6 +73,7 @@ struct CalibConfig {
     float src_quad[8] = {0};           // 透视源四点
     int   bird_width  = 640;
     int   bird_height = 480;
+    float bird_width_scale = 1.0f;     // 鸟瞰图宽度扩展倍数（>1扩大视野，ppm不变）
     float ppm_x       = 0.0f;          // X方向像素/米
     float ppm_y       = 0.0f;          // Y方向像素/米
 };

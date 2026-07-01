@@ -10,6 +10,50 @@
 
 namespace pathplan {
 
+// ---- 岔路处理：检测到岔路时抹除分支，保留主干 ----
+// 在宽鸟瞰mask上操作
+// 扫描方向：从近到远（底部→顶部），逐行找连通段
+// 出现2段→岔路，按keep_side参数决定保留侧（0=左，1=右），抹除对侧
+inline void handleFork(cv::Mat& mask, int keep_side = 0, int min_seg_width = 3) {
+    int w = mask.cols, h = mask.rows;
+    if (h < 5) return;
+
+    bool fork_found = false;
+
+    for (int r = h - 1; r >= 0; --r) {
+        uint8_t* row = mask.ptr<uint8_t>(r);
+
+        // ---- 找出本行所有连通段（从左到右有序） ----
+        std::vector<std::array<int, 2>> segs;
+        for (int c = 0; c < w; ) {
+            while (c < w && row[c] == 0) ++c;
+            if (c >= w) break;
+            int l = c;
+            while (c < w && row[c] > 0) ++c;
+            int r_end = c - 1;
+            if (r_end - l + 1 >= min_seg_width)
+                segs.push_back({l, r_end});
+        }
+
+        if (segs.empty()) {
+            if (fork_found) break;   // 岔路区域结束
+            continue;
+        }
+
+        if (segs.size() >= 2) {
+            // 岔路：按keep_side保留，抹除对侧分支
+            int keep_idx = (keep_side == 0) ? 0 : static_cast<int>(segs.size()) - 1;
+            for (int i = 0; i < static_cast<int>(segs.size()); ++i) {
+                if (i == keep_idx) continue;
+                for (int c = segs[i][0]; c <= segs[i][1]; ++c)
+                    row[c] = 0;
+            }
+            fork_found = true;
+        }
+        // 单段：不操作
+    }
+}
+
 // ---- 逐行扫描中线（纵向赛道：从左/右找白色像素，取中点） ----
 inline void extractCenterlineVertical(const cv::Mat& mask,
                                       std::vector<cv::Point2f>& out) {

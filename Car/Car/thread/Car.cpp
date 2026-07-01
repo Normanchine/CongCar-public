@@ -23,7 +23,7 @@ bool Car::init(int argc, char* argv[]) {
 
     // 初始化透视变换（若无标定数据则不生效）
     const auto& c = ctx_.config.calib;
-    ctx_.perspective.init(c.src_quad, c.bird_width, c.bird_height);
+    ctx_.perspective.init(c.src_quad, c.bird_width, c.bird_height, c.bird_width_scale);
 
     initialized_ = true;
     return true;
