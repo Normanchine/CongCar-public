@@ -3,7 +3,7 @@
 #include "../framework/SceneFactory.h"
 #include <algorithm>
 
-REGISTER_SCENE(CarScene)
+//REGISTER_SCENE(CarScene)
 
 void CarScene::run(SharedContext* ctx) {
     auto seg = ctx->seg_result.get();

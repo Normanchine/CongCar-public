@@ -4,7 +4,7 @@
 #include "../planning/PathPlanning.h"
 #include <algorithm>
 
-REGISTER_SCENE(TrafficSignScene)
+//REGISTER_SCENE(TrafficSignScene)
 
 // ---- OCR 函数：空实现，后续接入 API ----
 int TrafficSignScene::recognizeTrafficSign(const cv::Mat& /*sign_image*/) {
