@@ -10,13 +10,21 @@ using json = nlohmann::json;
 // ---- SceneControlParams 序列化 ----
 
 inline void to_json(json& j, const SceneControlParams& s) {
-    j = json{ {"max_speed", s.max_speed}, {"pid_p", s.pid_p}, {"pid_d", s.pid_d} };
+    j = json{
+        {"max_speed", s.max_speed},
+        {"pid_p", s.pid_p},
+        {"pid_d", s.pid_d},
+        {"r_light_stop_y_cm", s.r_light_stop_y_cm},
+        {"r_light_stop_speed_k", s.r_light_stop_speed_k}
+    };
 }
 
 inline void from_json(const json& j, SceneControlParams& s) {
     j.at("max_speed").get_to(s.max_speed);
     j.at("pid_p").get_to(s.pid_p);
     j.at("pid_d").get_to(s.pid_d);
+    if (j.contains("r_light_stop_y_cm"))    j.at("r_light_stop_y_cm").get_to(s.r_light_stop_y_cm);
+    if (j.contains("r_light_stop_speed_k")) j.at("r_light_stop_speed_k").get_to(s.r_light_stop_speed_k);
 }
 
 // ---- ControlConfig 序列化 ----

@@ -116,6 +116,7 @@ void CaptureTask::run() {
         // ---- 8. 入队 ----
         ctx_->segmentation_queue.produce(seg_input);
         ctx_->detection_queue.produce(det_input);
+        ctx_->work_frame_queue.produce(frame);          // 工作帧（场景裁剪用）
         if (ctx_->config.debug_mode) {
             ctx_->display_queue.produce(frame);         // 工作帧（显示线程绘制用）
         }

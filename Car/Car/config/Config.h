@@ -7,6 +7,10 @@ struct SceneControlParams {
     float max_speed = 1.0f;
     float pid_p     = 0.0f;
     float pid_d     = 0.0f;
+
+    // R_Light 场景专属参数（仅 RLightScene 使用）
+    float r_light_stop_y_cm    = 40.0f;   // 停车位置基准值 (cm)
+    float r_light_stop_speed_k = 0.5f;    // 车速→停车阈值系数
 };
 
 struct ControlConfig {

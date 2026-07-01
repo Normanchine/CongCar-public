@@ -34,6 +34,18 @@
         "max_speed": 0.7,
         "pid_p": 0.7,
         "pid_d": 0.6
+      },
+      "RLightScene": {
+        "max_speed": 0.7,
+        "pid_p": 0.7,
+        "pid_d": 0.6,
+        "r_light_stop_y_cm": 40.0,
+        "r_light_stop_speed_k": 0.5
+      },
+      "TrafficSignScene": {
+        "max_speed": 0.7,
+        "pid_p": 0.7,
+        "pid_d": 0.6
       }
     }
   },
@@ -54,7 +66,7 @@
       "class_num": 7,
       "classes": ["traffic_sign","stone","G_Light","Y_Light","R_Light","car","person"],
       "colors": [[0,255,0],[0,255,255],[255,0,0],[0,0,255],[0,128,255],[255,0,128],[128,0,255]],
-      "scene_map": {"car": "CarScene", "person": "PersonScene"}
+      "scene_map": {"car": "CarScene", "person": "PersonScene", "R_Light": "RLightScene", "traffic_sign": "TrafficSignScene"}
     },
     "ocr_model_path": ""
   },

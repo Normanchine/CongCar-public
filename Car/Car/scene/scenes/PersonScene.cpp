@@ -28,8 +28,13 @@ void PersonScene::run(SharedContext* ctx) {
         return;
     }
 
-    // 没人且不在冲刺 → 等 DetectionTask 切回 NormalScene
-    if (!person) return;
+    // 没人且不在冲刺 → 继续循线，等 DetectionTask 切回 NormalScene
+    if (!person) {
+        auto seg = ctx->seg_result.get();
+        if (seg && !seg->mask.empty())
+            follower_.process(seg->mask, ctx);
+        return;
+    }
 
     float proj_x = (person->x1 + person->x2) * 0.5f;
     int   frame_h = ctx->frame_height.load(std::memory_order_acquire);
