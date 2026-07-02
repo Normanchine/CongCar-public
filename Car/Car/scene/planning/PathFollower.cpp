@@ -148,7 +148,7 @@ float PathFollower::onSpeed(float error, SharedContext* ctx) {
     float ae = std::abs(error);
     if (ae > ctrl.steer_speed_threshold) {
         float excess = ae - ctrl.steer_speed_threshold;
-        target = sp.max_speed / (1.0f + 2.0f * excess);
+        target = sp.max_speed / (1.0f + ctrl.steer_speed_k * excess);
     }
 
     // 减速立即生效，加速平滑恢复

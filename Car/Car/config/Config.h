@@ -26,6 +26,7 @@ struct ControlConfig {
     float pwm_k   = 30.0f;             // 误差 → PWM 缩放
     bool  steering_invert = false;     // AR图像左右镜像时反转转向
     float steer_speed_threshold = 0.15f;  // |error|超过此值(rad)启动降速
+    float steer_speed_k         = 2.0f;   // 弯道降速系数：target = max_speed / (1 + k * excess)
 
     // ---- 动态前视 ----
     float lookahead_speed_k = 0.15f;   // 动态前视系数: aim = near + speed * k

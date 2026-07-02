@@ -13,17 +13,18 @@
     "pwm_k": 600.0,
     "steering_invert": false,
     "steer_speed_threshold": 0.15,
+    "steer_speed_k": 1.5,
     "lookahead_speed_k": 0.15,
     "max_lost_frames": 30,
     "coast_steer_step": 200.0,
     "coast_speed_decay": 0.9,
-    "speed_recovery_k": 0.3,
+    "speed_recovery_k": 0.02,
     "fork_keep_side": 0,
     "scene": {
       "NormalScene": {
-        "max_speed": 1.0,
+        "max_speed": 1.5,
         "pid_p": 0.95,
-        "pid_d": 0.8
+        "pid_d": 1.4
       },
       "CarScene": {
         "max_speed": 0.7,
@@ -52,9 +53,9 @@
 
   "ai": {
     "segmentation": {
-      "model_path": "/home/orangepi/Desktop/new/model/seg_512_256.rknn",
+      "model_path": "/home/orangepi/Desktop/new/model/pplite_seg_512x192_int8.rknn",
       "input_w": 512,
-      "input_h": 256
+      "input_h": 192
     },
     "detection": {
       "model_path": "/home/orangepi/Desktop/new/model/ppyoloe.rknn",

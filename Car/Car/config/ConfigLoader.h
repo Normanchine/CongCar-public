@@ -40,6 +40,7 @@ inline void to_json(json& j, const ControlConfig& c) {
         {"pwm_k",               c.pwm_k},
         {"steering_invert",        c.steering_invert},
         {"steer_speed_threshold", c.steer_speed_threshold},
+        {"steer_speed_k",       c.steer_speed_k},
         {"lookahead_speed_k",   c.lookahead_speed_k},
         {"max_lost_frames",     c.max_lost_frames},
         {"coast_steer_step",   c.coast_steer_step},
@@ -60,6 +61,7 @@ inline void from_json(const json& j, ControlConfig& c) {
     j.at("pwm_k").get_to(c.pwm_k);
     if (j.contains("steering_invert"))        j.at("steering_invert").get_to(c.steering_invert);
     if (j.contains("steer_speed_threshold"))  j.at("steer_speed_threshold").get_to(c.steer_speed_threshold);
+    if (j.contains("steer_speed_k"))         j.at("steer_speed_k").get_to(c.steer_speed_k);
     if (j.contains("lookahead_speed_k"))   j.at("lookahead_speed_k").get_to(c.lookahead_speed_k);
     if (j.contains("max_lost_frames"))     j.at("max_lost_frames").get_to(c.max_lost_frames);
     if (j.contains("coast_steer_step"))    j.at("coast_steer_step").get_to(c.coast_steer_step);
