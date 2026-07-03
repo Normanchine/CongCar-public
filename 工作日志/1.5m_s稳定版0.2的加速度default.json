@@ -6,7 +6,7 @@
   "control": {
     "car_length": 0.193,
     "car_cy_ratio": 0.95,
-    "aim_dist_near": 0.30,
+    "aim_dist_near": 0.35,
     "pwm_mid": 1560.0,
     "pwm_min": 500.0,
     "pwm_max": 2500.0,
@@ -18,8 +18,13 @@
     "max_lost_frames": 30,
     "coast_steer_step": 200.0,
     "coast_speed_decay": 0.9,
-    "speed_recovery_k": 0.01,
-    "fork_keep_side": 0,
+    "speed_recovery_k": 0.02,
+    "fork": {
+      "keep_side": 0,
+      "confirm_rows": 3,
+      "persist_frames": 30,
+      "width_threshold": 1.0
+    },
     "scene": {
       "NormalScene": {
         "max_speed": 1.5,

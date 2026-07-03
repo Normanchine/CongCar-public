@@ -3,7 +3,7 @@
 #include "../framework/SceneFactory.h"
 #include <algorithm>
 
-//REGISTER_SCENE(PersonScene)
+REGISTER_SCENE(PersonScene)
 
 void PersonScene::run(SharedContext* ctx) {
     auto det = ctx->det_result.get();

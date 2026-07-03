@@ -15,7 +15,9 @@ inline void to_json(json& j, const SceneControlParams& s) {
         {"pid_p", s.pid_p},
         {"pid_d", s.pid_d},
         {"r_light_stop_y_cm", s.r_light_stop_y_cm},
-        {"r_light_stop_speed_k", s.r_light_stop_speed_k}
+        {"r_light_stop_speed_k", s.r_light_stop_speed_k},
+        {"car_cut_ratio", s.car_cut_ratio},
+        {"car_mid_ratio", s.car_mid_ratio}
     };
 }
 
@@ -25,6 +27,8 @@ inline void from_json(const json& j, SceneControlParams& s) {
     j.at("pid_d").get_to(s.pid_d);
     if (j.contains("r_light_stop_y_cm"))    j.at("r_light_stop_y_cm").get_to(s.r_light_stop_y_cm);
     if (j.contains("r_light_stop_speed_k")) j.at("r_light_stop_speed_k").get_to(s.r_light_stop_speed_k);
+    if (j.contains("car_cut_ratio"))        j.at("car_cut_ratio").get_to(s.car_cut_ratio);
+    if (j.contains("car_mid_ratio"))        j.at("car_mid_ratio").get_to(s.car_mid_ratio);
 }
 
 // ---- ForkConfig 序列化 ----

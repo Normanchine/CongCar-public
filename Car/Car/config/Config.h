@@ -11,6 +11,10 @@ struct SceneControlParams {
     // R_Light 场景专属参数（仅 RLightScene 使用）
     float r_light_stop_y_cm    = 40.0f;   // 停车位置基准值 (cm)
     float r_light_stop_speed_k = 0.5f;    // 车速→停车阈值系数
+
+    // Car 场景专属参数（仅 CarScene 使用）
+    float car_cut_ratio  = 0.5f;           // 车侧切除比例（0~1，0.5=切一半宽度）
+    float car_mid_ratio  = 0.67f;          // 车侧判断中线比例（0~1，0.67=鸟瞰2/3处为分界）
 };
 
 struct ForkConfig {

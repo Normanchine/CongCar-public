@@ -6,7 +6,7 @@
   "control": {
     "car_length": 0.193,
     "car_cy_ratio": 0.95,
-    "aim_dist_near": 0.30,
+    "aim_dist_near": 0.35,
     "pwm_mid": 1560.0,
     "pwm_min": 500.0,
     "pwm_max": 2500.0,
@@ -18,11 +18,11 @@
     "max_lost_frames": 30,
     "coast_steer_step": 200.0,
     "coast_speed_decay": 0.9,
-    "speed_recovery_k": 0.02,
+    "speed_recovery_k": 0.01,
     "fork": {
       "keep_side": 0,
       "confirm_rows": 3,
-      "persist_frames": 100,
+      "persist_frames": 30,
       "width_threshold": 1.0
     },
     "scene": {
@@ -32,12 +32,14 @@
         "pid_d": 1.4
       },
       "CarScene": {
-        "max_speed": 0.7,
+        "max_speed": 0.5,
         "pid_p": 0.7,
-        "pid_d": 0.6
+        "pid_d": 0.6,
+        "car_cut_ratio": 0.45,
+        "car_mid_ratio": 0.9
       },
       "PersonScene": {
-        "max_speed": 0.7,
+        "max_speed": 0.5,
         "pid_p": 0.7,
         "pid_d": 0.6
       },
@@ -68,7 +70,7 @@
       "input_h": 256,
       "confidence_threshold": 0.3,
       "nms_threshold": 0.65,
-      "lost_frame_limit": 5,
+      "lost_frame_limit": 30,
       "class_num": 7,
       "classes": ["traffic_sign","stone","G_Light","Y_Light","R_Light","car","person"],
       "colors": [[0,255,0],[0,255,255],[255,0,0],[0,0,255],[0,128,255],[255,0,128],[128,0,255]],
@@ -87,7 +89,7 @@
   },
 
   "uart": {
-    "port": "/dev/ttyUSB0",
+    "port": "/dev/ttyUSB1",
     "baud": 115200,
     "pwm_neutral": 1500.0
   },

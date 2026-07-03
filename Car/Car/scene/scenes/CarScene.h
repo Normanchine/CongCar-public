@@ -11,13 +11,12 @@ public:
     void run(SharedContext* ctx) override;
 
 private:
-    // 重写onCenterline：跳过车区像素，无需修改mask
+    // 重写onFork：在宽鸟瞰mask上整侧切除车所在侧，然后正常巡线
     class Follower : public PathFollower {
     public:
-        cv::Rect car_rect;  // 鸟瞰坐标（空rect不跳过）
+        int cut_side = -1;  // -1=无车, 0=车在左切左, 1=车在右切右
     protected:
-        void onCenterline(const cv::Mat& mask, std::vector<cv::Point2f>& centers,
-                          SharedContext* ctx) override;
+        void onFork(cv::Mat& wide_mask, SharedContext* ctx) override;
     };
 
     Follower follower_;
