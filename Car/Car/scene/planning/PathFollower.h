@@ -19,7 +19,7 @@ public:
 protected:
     // ---- 可重写步骤（子类只改需要改的） ----
 
-    // 岔路处理：默认调 handleFork(wide_mask, fork_keep_side)
+    // 岔路处理：默认调 handleFork(wide_mask, fork_state_, fork.*)
     virtual void onFork(cv::Mat& wide_mask, SharedContext* ctx);
 
     // 中线提取：默认 extract + smooth
@@ -42,4 +42,5 @@ protected:
     float last_speed_  = 0.0f;
     int   lost_frames_ = 0;
     bool  first_frame_ = true;
+    pathplan::ForkState fork_state_;  // 岔路持久化状态（场景切换自动重置）
 };

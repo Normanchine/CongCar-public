@@ -27,6 +27,24 @@ inline void from_json(const json& j, SceneControlParams& s) {
     if (j.contains("r_light_stop_speed_k")) j.at("r_light_stop_speed_k").get_to(s.r_light_stop_speed_k);
 }
 
+// ---- ForkConfig 序列化 ----
+
+inline void to_json(json& j, const ForkConfig& f) {
+    j = json{
+        {"keep_side",       f.keep_side},
+        {"confirm_rows",    f.confirm_rows},
+        {"persist_frames",  f.persist_frames},
+        {"width_threshold", f.width_threshold},
+    };
+}
+
+inline void from_json(const json& j, ForkConfig& f) {
+    if (j.contains("keep_side"))       j.at("keep_side").get_to(f.keep_side);
+    if (j.contains("confirm_rows"))    j.at("confirm_rows").get_to(f.confirm_rows);
+    if (j.contains("persist_frames"))  j.at("persist_frames").get_to(f.persist_frames);
+    if (j.contains("width_threshold")) j.at("width_threshold").get_to(f.width_threshold);
+}
+
 // ---- ControlConfig 序列化 ----
 
 inline void to_json(json& j, const ControlConfig& c) {
@@ -46,7 +64,7 @@ inline void to_json(json& j, const ControlConfig& c) {
         {"coast_steer_step",   c.coast_steer_step},
         {"coast_speed_decay",  c.coast_speed_decay},
         {"speed_recovery_k",   c.speed_recovery_k},
-        {"fork_keep_side",     c.fork_keep_side},
+        {"fork",                c.fork},
         {"scene",               c.scene}
     };
 }
@@ -67,7 +85,7 @@ inline void from_json(const json& j, ControlConfig& c) {
     if (j.contains("coast_steer_step"))    j.at("coast_steer_step").get_to(c.coast_steer_step);
     if (j.contains("coast_speed_decay"))  j.at("coast_speed_decay").get_to(c.coast_speed_decay);
     if (j.contains("speed_recovery_k"))   j.at("speed_recovery_k").get_to(c.speed_recovery_k);
-    if (j.contains("fork_keep_side"))     j.at("fork_keep_side").get_to(c.fork_keep_side);
+    if (j.contains("fork"))  j.at("fork").get_to(c.fork);
     if (j.contains("scene")) j.at("scene").get_to(c.scene);
 }
 

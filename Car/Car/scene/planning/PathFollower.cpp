@@ -94,8 +94,10 @@ bool PathFollower::process(const cv::Mat& seg_mask, SharedContext* ctx) {
 // ---- 默认实现 ----
 
 void PathFollower::onFork(cv::Mat& wide_mask, SharedContext* ctx) {
-    pathplan::handleFork(wide_mask,
-                         ctx->config.control.fork_keep_side, 1);
+    const auto& fk = ctx->config.control.fork;
+    pathplan::handleFork(wide_mask, fork_state_,
+                         fk.keep_side, fk.confirm_rows,
+                         fk.persist_frames, fk.width_threshold, 1);
 }
 
 void PathFollower::onCenterline(const cv::Mat& mask,

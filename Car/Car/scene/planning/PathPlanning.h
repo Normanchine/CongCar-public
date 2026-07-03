@@ -4,27 +4,46 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <vector>
 #include <opencv2/core/types.hpp>
 #include <opencv2/core/mat.hpp>
 
 namespace pathplan {
 
-// ---- 岔路处理：检测到岔路时抹除分支，保留主干 ----
-// 在宽鸟瞰mask上操作
-// 扫描方向：从近到远（底部→顶部），逐行找连通段
-// 出现2段→岔路，按keep_side参数决定保留侧（0=左，1=右），抹除对侧
-inline void handleFork(cv::Mat& mask, int keep_side = 0, int min_seg_width = 3) {
+// ---- 岔路持久化状态 ----
+// 场景切换时由 PathFollower 重置
+struct ForkState {
+    int   persist_remaining = 0;    // 持久化剩余帧数，0=检测模式
+    float persist_stem_w   = 0.0f;  // 持久化的主干宽度（像素）
+    int   persist_keep_side = 0;    // 持久化的保留侧
+};
+
+// ---- 岔路处理：等宽切除 ----
+// 原理：赛道宽度固定，每个分支宽度 ≈ 主干宽度。
+//       从保留侧边界量 stem_w 像素，超出部分切除。
+//       粘连区和分离区用同一规则一刀切。
+//
+// 检测模式 (state.persist_remaining == 0):
+//   双向扫描，连续 fork_confirm_rows 行 segs≥2 → 岔路确认
+//   stem_w = 平均(确认行的保留侧段宽 + 主干侧单段行宽)
+//   从岔路确认区向分支方向等宽切除 → 进入持久化模式
+//
+// 持久化模式 (state.persist_remaining > 0):
+//   不扫描、不重算 stem_w，直接用保存的 stem_w
+//   每行宽度 > stem_w * width_threshold → 切除
+//   帧数递减，归零后回到检测模式
+inline void handleFork(cv::Mat& mask, ForkState& state,
+                       int keep_side, int fork_confirm_rows,
+                       int persist_frames, float width_threshold,
+                       int min_seg_width = 3) {
     int w = mask.cols, h = mask.rows;
     if (h < 5) return;
 
-    bool fork_found = false;
-
-    for (int r = h - 1; r >= 0; --r) {
-        uint8_t* row = mask.ptr<uint8_t>(r);
-
-        // ---- 找出本行所有连通段（从左到右有序） ----
+    // ---- 辅助：提取一行的连通段 ----
+    auto findSegs = [&](int r) {
         std::vector<std::array<int, 2>> segs;
+        const uint8_t* row = mask.ptr<uint8_t>(r);
         for (int c = 0; c < w; ) {
             while (c < w && row[c] == 0) ++c;
             if (c >= w) break;
@@ -34,24 +53,116 @@ inline void handleFork(cv::Mat& mask, int keep_side = 0, int min_seg_width = 3) 
             if (r_end - l + 1 >= min_seg_width)
                 segs.push_back({l, r_end});
         }
+        return segs;
+    };
 
-        if (segs.empty()) {
-            if (fork_found) break;   // 岔路区域结束
-            continue;
+    // ---- 辅助：对单行等宽切除 ----
+    // 参考左边界，keep_side=0保留左(切右)，keep_side=1保留右(切左)
+    auto cutRow = [&](int r, int stem_w, const std::vector<std::array<int, 2>>& segs) {
+        uint8_t* row = mask.ptr<uint8_t>(r);
+        int left = segs[0][0];  // 最左段左边界
+        if (keep_side == 0) {
+            // 保留左：从 left+stem_w 起清零
+            int cut = left + stem_w;
+            if (cut < w) std::memset(row + cut, 0, (w - cut) * sizeof(uint8_t));
+        } else {
+            // 保留右：从 left 到 left+stem_w 清零
+            int cut = std::min(left + stem_w, w);
+            std::memset(row + left, 0, (cut - left) * sizeof(uint8_t));
         }
+    };
 
-        if (segs.size() >= 2) {
-            // 岔路：按keep_side保留，抹除对侧分支
-            int keep_idx = (keep_side == 0) ? 0 : static_cast<int>(segs.size()) - 1;
-            for (int i = 0; i < static_cast<int>(segs.size()); ++i) {
-                if (i == keep_idx) continue;
-                for (int c = segs[i][0]; c <= segs[i][1]; ++c)
-                    row[c] = 0;
-            }
-            fork_found = true;
+    // ======== 持久化模式 ========
+    if (state.persist_remaining > 0) {
+        state.persist_remaining--;
+        int stem_w = static_cast<int>(std::round(state.persist_stem_w));
+        if (stem_w < 2) return;
+
+        float thr = state.persist_stem_w * width_threshold;
+        for (int r = 0; r < h; ++r) {
+            auto segs = findSegs(r);
+            if (segs.empty()) continue;
+            // 整行总跨度
+            int row_w = segs.back()[1] - segs[0][0] + 1;
+            if (row_w <= thr) continue;  // 宽度正常，不切
+            cutRow(r, stem_w, segs);
         }
-        // 单段：不操作
+        return;
     }
+
+    // ======== 检测模式：一趟扫描，边扫边记 ========
+    // dir: -1=Bottom→Top, +1=Top→Bottom
+    // 主干在扫描来向（dir的反方向），分叉在扫描去往方向
+    auto detectPass = [&](int r_start, int dir) -> bool {
+        std::vector<int> stem_widths;   // 主干侧单段行宽度
+        std::vector<int> fork_widths;   // 分叉行保留侧段宽度
+        int fork_count = 0;
+        int fork_r_start = 0;
+        const int stem_max = 20;        // 最多保留的主干行数
+
+        for (int r = r_start; r >= 0 && r < h; r += dir) {
+            auto segs = findSegs(r);
+            if (segs.empty()) {
+                fork_count = 0;
+                fork_widths.clear();
+                continue;
+            }
+
+            if (segs.size() == 1) {
+                // 单段：记录到主干宽度缓冲
+                stem_widths.push_back(segs[0][1] - segs[0][0] + 1);
+                if (static_cast<int>(stem_widths.size()) > stem_max)
+                    stem_widths.erase(stem_widths.begin());
+                fork_count = 0;
+                fork_widths.clear();
+            } else {
+                // 多段：分叉行
+                if (fork_count == 0) fork_r_start = r;
+                fork_count++;
+
+                // 记录最左段宽度（锚点统一左边界，stem_w=切除/保留量）
+                int kw = segs[0][1] - segs[0][0] + 1;
+                fork_widths.push_back(kw);
+
+                if (fork_count >= fork_confirm_rows) {
+                    // ★ 岔路确认！
+                    // stem_w = 分叉确认行保留侧段宽的平均
+                    float sum = 0.0f;
+                    int cnt = 0;
+                    for (int fw : fork_widths) { sum += fw; cnt++; }
+                    if (cnt == 0) return false;
+
+                    float stem_w = sum / cnt;
+                    int stem_wi = static_cast<int>(std::round(stem_w));
+
+                    // 统一规则：从分叉点向外两个方向，每行左边界+stem_w切除，遇空行停
+                    for (int rr = fork_r_start; rr >= 0 && rr < h; rr += dir) {
+                        auto cut_segs = findSegs(rr);
+                        if (cut_segs.empty()) break;
+                        cutRow(rr, stem_wi, cut_segs);
+                    }
+                    for (int rr = fork_r_start - dir; rr >= 0 && rr < h; rr -= dir) {
+                        auto cut_segs = findSegs(rr);
+                        if (cut_segs.empty()) break;
+                        cutRow(rr, stem_wi, cut_segs);
+                    }
+
+                    // 进入持久化模式
+                    state.persist_remaining = persist_frames;
+                    state.persist_stem_w = stem_w;
+                    state.persist_keep_side = keep_side;
+                    return true;
+                }
+            }
+        }
+        return false;
+    };
+
+    // ======== Pass 1: Bottom→Top（近→远） ========
+    if (detectPass(h - 1, -1)) return;
+
+    // ======== Pass 2: Top→Bottom（远→近） ========
+    detectPass(0, +1);
 }
 
 // ---- 逐行扫描中线（纵向赛道：从左/右找白色像素，取中点） ----

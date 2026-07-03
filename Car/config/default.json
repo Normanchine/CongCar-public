@@ -19,7 +19,12 @@
     "coast_steer_step": 200.0,
     "coast_speed_decay": 0.9,
     "speed_recovery_k": 0.02,
-    "fork_keep_side": 0,
+    "fork": {
+      "keep_side": 0,
+      "confirm_rows": 3,
+      "persist_frames": 100,
+      "width_threshold": 1.0
+    },
     "scene": {
       "NormalScene": {
         "max_speed": 1.5,

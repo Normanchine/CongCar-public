@@ -14,8 +14,11 @@ int TrafficSignScene::recognizeTrafficSign(const cv::Mat& /*sign_image*/) {
 }
 
 // ---- 重写 onFork：根据 OCR 结果选择保留侧 ----
-void TrafficSignScene::Follower::onFork(cv::Mat& wide_mask, SharedContext* /*ctx*/) {
-    pathplan::handleFork(wide_mask, fork_side, 1);
+void TrafficSignScene::Follower::onFork(cv::Mat& wide_mask, SharedContext* ctx) {
+    const auto& fk = ctx->config.control.fork;
+    pathplan::handleFork(wide_mask, fork_state_,
+                         fork_side, fk.confirm_rows,
+                         fk.persist_frames, fk.width_threshold, 1);
 }
 
 void TrafficSignScene::run(SharedContext* ctx) {
