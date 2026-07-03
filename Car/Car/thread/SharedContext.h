@@ -80,7 +80,10 @@ struct SharedContext {
     // ---- 透视变换 ----
     PerspectiveMapper perspective;
 
-    // ---- 原始帧尺寸（CaptureTask 写入，DetectionTask 读取用于坐标映射） ----
+    // ---- 工作帧（CaptureTask 写入，场景裁剪用） ----
+    FrameQueue<cv::Mat> work_frame_queue{3};
+
+    // ---- 工作帧尺寸（CaptureTask 写入，DetectionTask 读取用于坐标映射） ----
     std::atomic<int> frame_width{0};
     std::atomic<int> frame_height{0};
 

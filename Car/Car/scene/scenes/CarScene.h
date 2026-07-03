@@ -11,6 +11,14 @@ public:
     void run(SharedContext* ctx) override;
 
 private:
-    PathFollower follower_;
-    int car_class_id_ = -1;   // 首次运行时从config查找
+    // 重写onFork：在宽鸟瞰mask上整侧切除车所在侧，然后正常巡线
+    class Follower : public PathFollower {
+    public:
+        int cut_side = -1;  // -1=无车, 0=车在左切左, 1=车在右切右
+    protected:
+        void onFork(cv::Mat& wide_mask, SharedContext* ctx) override;
+    };
+
+    Follower follower_;
+    int car_class_id_ = -1;
 };

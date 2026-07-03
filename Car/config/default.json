@@ -6,31 +6,51 @@
   "control": {
     "car_length": 0.193,
     "car_cy_ratio": 0.95,
-    "aim_dist_near": 0.15,
+    "aim_dist_near": 0.35,
     "pwm_mid": 1560.0,
     "pwm_min": 500.0,
     "pwm_max": 2500.0,
     "pwm_k": 600.0,
     "steering_invert": false,
     "steer_speed_threshold": 0.15,
+    "steer_speed_k": 1.5,
     "lookahead_speed_k": 0.15,
-    "max_lost_frames": 5,
+    "max_lost_frames": 30,
     "coast_steer_step": 200.0,
     "coast_speed_decay": 0.9,
-    "speed_recovery_k": 0.3,
-    "fork_keep_side": 0,
+    "speed_recovery_k": 0.01,
+    "fork": {
+      "keep_side": 0,
+      "confirm_rows": 3,
+      "persist_frames": 30,
+      "width_threshold": 1.0
+    },
     "scene": {
       "NormalScene": {
-        "max_speed": 0.7,
-        "pid_p": 0.7,
-        "pid_d": 0.6
+        "max_speed": 1.5,
+        "pid_p": 0.95,
+        "pid_d": 1.4
       },
       "CarScene": {
-        "max_speed": 0.7,
+        "max_speed": 0.5,
+        "pid_p": 0.7,
+        "pid_d": 0.6,
+        "car_cut_ratio": 0.45,
+        "car_mid_ratio": 0.9
+      },
+      "PersonScene": {
+        "max_speed": 0.5,
         "pid_p": 0.7,
         "pid_d": 0.6
       },
-      "PersonScene": {
+      "RLightScene": {
+        "max_speed": 0.7,
+        "pid_p": 0.7,
+        "pid_d": 0.6,
+        "r_light_stop_y_cm": 40.0,
+        "r_light_stop_speed_k": 0.5
+      },
+      "TrafficSignScene": {
         "max_speed": 0.7,
         "pid_p": 0.7,
         "pid_d": 0.6
@@ -40,9 +60,9 @@
 
   "ai": {
     "segmentation": {
-      "model_path": "/home/orangepi/Desktop/new/model/seg_512_256.rknn",
+      "model_path": "/home/orangepi/Desktop/new/model/pplite_seg_512x192_int8.rknn",
       "input_w": 512,
-      "input_h": 256
+      "input_h": 192
     },
     "detection": {
       "model_path": "/home/orangepi/Desktop/new/model/ppyoloe.rknn",
@@ -50,11 +70,11 @@
       "input_h": 256,
       "confidence_threshold": 0.3,
       "nms_threshold": 0.65,
-      "lost_frame_limit": 5,
+      "lost_frame_limit": 30,
       "class_num": 7,
       "classes": ["traffic_sign","stone","G_Light","Y_Light","R_Light","car","person"],
       "colors": [[0,255,0],[0,255,255],[255,0,0],[0,0,255],[0,128,255],[255,0,128],[128,0,255]],
-      "scene_map": {"car": "CarScene", "person": "PersonScene"}
+      "scene_map": {"car": "CarScene", "person": "PersonScene", "R_Light": "RLightScene", "traffic_sign": "TrafficSignScene"}
     },
     "ocr_model_path": ""
   },
@@ -63,13 +83,13 @@
     "src_quad": [322.0, 96.0, 390.0, 97.0, 439.0, 177.0, 243.0, 171.0],
     "bird_width": 240,
     "bird_height": 480,
-    "bird_width_scale": 1.0,
+    "bird_width_scale": 4.0,
     "ppm_x": 600.0,
     "ppm_y": 600.0
   },
 
   "uart": {
-    "port": "/dev/ttyUSB0",
+    "port": "/dev/ttyUSB1",
     "baud": 115200,
     "pwm_neutral": 1500.0
   },

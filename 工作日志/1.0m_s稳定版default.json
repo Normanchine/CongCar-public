@@ -1,0 +1,102 @@
+{
+  "debug_mode": true,
+  "shm_name": "shm_ar_video",
+  "shm_size": 10485760,
+
+  "control": {
+    "car_length": 0.193,
+    "car_cy_ratio": 0.95,
+    "aim_dist_near": 0.30,
+    "pwm_mid": 1560.0,
+    "pwm_min": 500.0,
+    "pwm_max": 2500.0,
+    "pwm_k": 600.0,
+    "steering_invert": false,
+    "steer_speed_threshold": 0.15,
+    "lookahead_speed_k": 0.15,
+    "max_lost_frames": 30,
+    "coast_steer_step": 200.0,
+    "coast_speed_decay": 0.9,
+    "speed_recovery_k": 0.3,
+    "fork_keep_side": 0,
+    "scene": {
+      "NormalScene": {
+        "max_speed": 1.0,
+        "pid_p": 0.95,
+        "pid_d": 0.9
+      },
+      "CarScene": {
+        "max_speed": 0.7,
+        "pid_p": 0.7,
+        "pid_d": 0.6
+      },
+      "PersonScene": {
+        "max_speed": 0.7,
+        "pid_p": 0.7,
+        "pid_d": 0.6
+      },
+      "RLightScene": {
+        "max_speed": 0.7,
+        "pid_p": 0.7,
+        "pid_d": 0.6,
+        "r_light_stop_y_cm": 40.0,
+        "r_light_stop_speed_k": 0.5
+      },
+      "TrafficSignScene": {
+        "max_speed": 0.7,
+        "pid_p": 0.7,
+        "pid_d": 0.6
+      }
+    }
+  },
+
+  "ai": {
+    "segmentation": {
+      "model_path": "/home/orangepi/Desktop/new/model/pplite_seg_512x192_int8.rknn",
+      "input_w": 512,
+      "input_h": 192
+    },
+    "detection": {
+      "model_path": "/home/orangepi/Desktop/new/model/ppyoloe.rknn",
+      "input_w": 640,
+      "input_h": 256,
+      "confidence_threshold": 0.3,
+      "nms_threshold": 0.65,
+      "lost_frame_limit": 5,
+      "class_num": 7,
+      "classes": ["traffic_sign","stone","G_Light","Y_Light","R_Light","car","person"],
+      "colors": [[0,255,0],[0,255,255],[255,0,0],[0,0,255],[0,128,255],[255,0,128],[128,0,255]],
+      "scene_map": {"car": "CarScene", "person": "PersonScene", "R_Light": "RLightScene", "traffic_sign": "TrafficSignScene"}
+    },
+    "ocr_model_path": ""
+  },
+
+  "calib": {
+    "src_quad": [322.0, 96.0, 390.0, 97.0, 439.0, 177.0, 243.0, 171.0],
+    "bird_width": 240,
+    "bird_height": 480,
+    "bird_width_scale": 4.0,
+    "ppm_x": 600.0,
+    "ppm_y": 600.0
+  },
+
+  "uart": {
+    "port": "/dev/ttyUSB0",
+    "baud": 115200,
+    "pwm_neutral": 1500.0
+  },
+
+  "frame_crop": {
+    "enable": true,
+    "x": 0,
+    "y": 240,
+    "w": 640,
+    "h": 240
+  },
+
+  "http_stream": {
+    "port": 5001,
+    "jpeg_quality": 80,
+    "enable": true
+  }
+}

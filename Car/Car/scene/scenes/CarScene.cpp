@@ -9,8 +9,6 @@ void CarScene::run(SharedContext* ctx) {
     auto seg = ctx->seg_result.get();
     if (!seg || seg->mask.empty()) return;
 
-    auto det = ctx->det_result.get();
-
     // 找到car的class_id（只查一次）
     if (car_class_id_ < 0) {
         const auto& classes = ctx->config.ai.detection.classes;
@@ -19,20 +17,47 @@ void CarScene::run(SharedContext* ctx) {
         }
     }
 
-    // 车检测框区域涂黑（让PathFollower绕开）
-    cv::Mat mask = seg->mask.clone();
+    // 检测车，判断在赛道哪侧 → 设置cut_side
+    follower_.cut_side = -1;  // 默认无车
+    auto det = ctx->det_result.get();
     if (det && car_class_id_ >= 0) {
         for (const auto& b : det->boxes) {
             if (b.class_id == car_class_id_ && b.confidence > 0.4f) {
-                int x1 = std::max(0, static_cast<int>(b.x1));
-                int y1 = std::max(0, static_cast<int>(b.y1));
-                int x2 = std::min(mask.cols - 1, static_cast<int>(b.x2));
-                int y2 = std::min(mask.rows - 1, static_cast<int>(b.y2));
-                if (x2 > x1 && y2 > y1)
-                    mask(cv::Rect(x1, y1, x2 - x1, y2 - y1)).setTo(0);
+                // 只投影车框底边两点（触地点在地面上，投影准确）
+                cv::Point2f bl = ctx->perspective.toBird({b.x1, b.y2});  // 底左
+                cv::Point2f br = ctx->perspective.toBird({b.x2, b.y2});  // 底右
+                float car_cx = (bl.x + br.x) * 0.5f;
+
+                // 车中心 vs 配置的中线比例 → 车在左半还是右半
+                const auto& sp = ctx->config.control.scene.at("CarScene");
+                float mid_x = ctx->perspective.birdW() * sp.car_mid_ratio;
+                follower_.cut_side = (car_cx < mid_x) ? 0 : 1;  // 0=切左, 1=切右
+                break;
             }
         }
     }
 
-    follower_.process(mask, ctx);
+    follower_.process(seg->mask, ctx);
+}
+
+// ---- Follower::onFork：整侧切除车所在侧 + 岔路处理 ----
+void CarScene::Follower::onFork(cv::Mat& wide_mask, SharedContext* ctx) {
+    // ---- 1. 检测到车？切除车所在侧赛道 ----
+    if (cut_side >= 0) {
+        const auto& sp = ctx->config.control.scene.at("CarScene");
+        float ratio = sp.car_cut_ratio;
+        int w = wide_mask.cols;
+        int cut_w = static_cast<int>(w * ratio);
+
+        if (cut_side == 0) {
+            // 车在左 → 切除左侧（车所在侧涂黑，保留右侧巡线）
+            wide_mask(cv::Rect(0, 0, cut_w, wide_mask.rows)) = 0;
+        } else {
+            // 车在右 → 切除右侧
+            wide_mask(cv::Rect(w - cut_w, 0, cut_w, wide_mask.rows)) = 0;
+        }
+    }
+
+    // ---- 2. 岔路处理（有车无车都要做） ----
+    PathFollower::onFork(wide_mask, ctx);
 }

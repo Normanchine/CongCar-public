@@ -10,13 +10,43 @@ using json = nlohmann::json;
 // ---- SceneControlParams 序列化 ----
 
 inline void to_json(json& j, const SceneControlParams& s) {
-    j = json{ {"max_speed", s.max_speed}, {"pid_p", s.pid_p}, {"pid_d", s.pid_d} };
+    j = json{
+        {"max_speed", s.max_speed},
+        {"pid_p", s.pid_p},
+        {"pid_d", s.pid_d},
+        {"r_light_stop_y_cm", s.r_light_stop_y_cm},
+        {"r_light_stop_speed_k", s.r_light_stop_speed_k},
+        {"car_cut_ratio", s.car_cut_ratio},
+        {"car_mid_ratio", s.car_mid_ratio}
+    };
 }
 
 inline void from_json(const json& j, SceneControlParams& s) {
     j.at("max_speed").get_to(s.max_speed);
     j.at("pid_p").get_to(s.pid_p);
     j.at("pid_d").get_to(s.pid_d);
+    if (j.contains("r_light_stop_y_cm"))    j.at("r_light_stop_y_cm").get_to(s.r_light_stop_y_cm);
+    if (j.contains("r_light_stop_speed_k")) j.at("r_light_stop_speed_k").get_to(s.r_light_stop_speed_k);
+    if (j.contains("car_cut_ratio"))        j.at("car_cut_ratio").get_to(s.car_cut_ratio);
+    if (j.contains("car_mid_ratio"))        j.at("car_mid_ratio").get_to(s.car_mid_ratio);
+}
+
+// ---- ForkConfig 序列化 ----
+
+inline void to_json(json& j, const ForkConfig& f) {
+    j = json{
+        {"keep_side",       f.keep_side},
+        {"confirm_rows",    f.confirm_rows},
+        {"persist_frames",  f.persist_frames},
+        {"width_threshold", f.width_threshold},
+    };
+}
+
+inline void from_json(const json& j, ForkConfig& f) {
+    if (j.contains("keep_side"))       j.at("keep_side").get_to(f.keep_side);
+    if (j.contains("confirm_rows"))    j.at("confirm_rows").get_to(f.confirm_rows);
+    if (j.contains("persist_frames"))  j.at("persist_frames").get_to(f.persist_frames);
+    if (j.contains("width_threshold")) j.at("width_threshold").get_to(f.width_threshold);
 }
 
 // ---- ControlConfig 序列化 ----
@@ -32,12 +62,13 @@ inline void to_json(json& j, const ControlConfig& c) {
         {"pwm_k",               c.pwm_k},
         {"steering_invert",        c.steering_invert},
         {"steer_speed_threshold", c.steer_speed_threshold},
+        {"steer_speed_k",       c.steer_speed_k},
         {"lookahead_speed_k",   c.lookahead_speed_k},
         {"max_lost_frames",     c.max_lost_frames},
         {"coast_steer_step",   c.coast_steer_step},
         {"coast_speed_decay",  c.coast_speed_decay},
         {"speed_recovery_k",   c.speed_recovery_k},
-        {"fork_keep_side",     c.fork_keep_side},
+        {"fork",                c.fork},
         {"scene",               c.scene}
     };
 }
@@ -52,12 +83,13 @@ inline void from_json(const json& j, ControlConfig& c) {
     j.at("pwm_k").get_to(c.pwm_k);
     if (j.contains("steering_invert"))        j.at("steering_invert").get_to(c.steering_invert);
     if (j.contains("steer_speed_threshold"))  j.at("steer_speed_threshold").get_to(c.steer_speed_threshold);
+    if (j.contains("steer_speed_k"))         j.at("steer_speed_k").get_to(c.steer_speed_k);
     if (j.contains("lookahead_speed_k"))   j.at("lookahead_speed_k").get_to(c.lookahead_speed_k);
     if (j.contains("max_lost_frames"))     j.at("max_lost_frames").get_to(c.max_lost_frames);
     if (j.contains("coast_steer_step"))    j.at("coast_steer_step").get_to(c.coast_steer_step);
     if (j.contains("coast_speed_decay"))  j.at("coast_speed_decay").get_to(c.coast_speed_decay);
     if (j.contains("speed_recovery_k"))   j.at("speed_recovery_k").get_to(c.speed_recovery_k);
-    if (j.contains("fork_keep_side"))     j.at("fork_keep_side").get_to(c.fork_keep_side);
+    if (j.contains("fork"))  j.at("fork").get_to(c.fork);
     if (j.contains("scene")) j.at("scene").get_to(c.scene);
 }
 

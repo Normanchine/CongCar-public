@@ -70,6 +70,14 @@ public:
     int  birdW()   const { return bird_w_; }
     int  birdH()   const { return bird_h_; }
 
+    // 图像坐标 → 鸟瞰坐标（单点变换，微秒级）
+    cv::Point2f toBird(const cv::Point2f& p) const {
+        std::vector<cv::Point2f> src = {p};
+        std::vector<cv::Point2f> dst;
+        cv::perspectiveTransform(src, dst, M_);
+        return dst[0];
+    }
+
 private:
     cv::Mat M_;
     int bird_w_ = 0;
