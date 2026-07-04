@@ -11,6 +11,8 @@
 #include <memory>
 #include <thread>
 #include <vector>
+#include <algorithm>
+#include <cmath>
 
 REGISTER_THREAD_TASK(DetectionTask)
 
@@ -74,6 +76,57 @@ void DetectionTask::run() {
                 orig_w, orig_h,
                 orig_h, 0,    // 工作帧即全图，无额外裁剪
                 det_cfg.confidence_threshold, det_cfg.nms_threshold);
+
+            // 右侧车近距离消失 = 车后藏人风险。只维护风险标记，不改变场景选择规则。
+            if (right_car_class_id_ < 0) {
+                for (int i = 0; i < static_cast<int>(det_cfg.classes.size()); ++i) {
+                    if (det_cfg.classes[i] == "car") {
+                        right_car_class_id_ = i;
+                        break;
+                    }
+                }
+            }
+            if (right_car_class_id_ >= 0 && ctx_->perspective.isReady()) {
+                const auto& ctrl = ctx_->config.control;
+                const auto& calib = ctx_->config.calib;
+                const auto& car_sp = ctx_->config.control.scene.at("CarScene");
+                const auto& person_sp = ctx_->config.control.scene.at("PersonScene");
+
+                bool right_car_near = false;
+                float mid_x = ctx_->perspective.birdW() * car_sp.car_mid_ratio;
+                float car_y = calib.bird_height * ctrl.car_cy_ratio;
+
+                for (const auto& d : detections) {
+                    if (d.class_id != right_car_class_id_ || d.score < 0.4f) continue;
+
+                    cv::Point2f bl = ctx_->perspective.toBird({d.x1, d.y2});
+                    cv::Point2f br = ctx_->perspective.toBird({d.x2, d.y2});
+                    float car_cx = (bl.x + br.x) * 0.5f;
+                    if (car_cx < mid_x) continue;
+
+                    float car_bottom_y = (bl.y + br.y) * 0.5f;
+                    float dist_m = (car_y - car_bottom_y) / calib.ppm_y;
+                    if (dist_m >= -0.20f && dist_m <= person_sp.person_car_side_stop_dist_m) {
+                        right_car_near = true;
+                        break;
+                    }
+                }
+
+                if (right_car_near) {
+                    right_car_was_near_ = true;
+                    ctx_->right_car_hidden_risk_frames.store(0, std::memory_order_release);
+                } else if (right_car_was_near_) {
+                    right_car_was_near_ = false;
+                    ctx_->right_car_hidden_risk_frames.store(
+                        std::max(1, person_sp.person_car_watch_frames),
+                        std::memory_order_release);
+                } else {
+                    int risk = ctx_->right_car_hidden_risk_frames.load(std::memory_order_acquire);
+                    if (risk > 0) {
+                        ctx_->right_car_hidden_risk_frames.store(risk - 1, std::memory_order_release);
+                    }
+                }
+            }
 
             // 转换为DetResult
             DetResult result;
