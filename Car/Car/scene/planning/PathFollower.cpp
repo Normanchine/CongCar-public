@@ -12,7 +12,8 @@ bool PathFollower::process(const cv::Mat& seg_mask, SharedContext* ctx) {
     }
 
     const auto& ctrl = ctx->config.control;
-    const auto& sp   = ctrl.scene.at(ctx->scene_manager.currentName());
+    const auto& scene_name = ctx->scene_manager.currentName();
+    const auto& sp   = ctrl.scene.at(scene_name);
     const auto& calib = ctx->config.calib;
 
     // ---- 0. 宽鸟瞰变换 ----
@@ -59,6 +60,10 @@ bool PathFollower::process(const cv::Mat& seg_mask, SharedContext* ctx) {
     // ---- 5. 纯跟踪 + 航向误差 ----
     int w = mask.cols, h = mask.rows;
     float cx = w * 0.5f, cy = h * ctrl.car_cy_ratio;
+    if (scene_name == "CarScene") {
+        float offset_ratio = std::clamp(sp.car_center_x_offset_ratio, -0.45f, 0.45f);
+        cx += w * offset_ratio;
+    }
     float cur_spd = (last_speed_ > 0.01f) ? last_speed_ : sp.max_speed;
     float aim_dist = ctrl.aim_dist_near + cur_spd * ctrl.lookahead_speed_k;
     cv::Point2f aim_pt;

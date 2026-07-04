@@ -2,95 +2,155 @@
 #include "../../thread/SharedContext.h"
 #include "../framework/SceneFactory.h"
 #include <algorithm>
+#include <cmath>
 
 REGISTER_SCENE(PersonScene)
 
 void PersonScene::run(SharedContext* ctx) {
-    auto det = ctx->det_result.get();
+    updatePersonClassId(ctx);
+    const auto& sp = ctx->config.control.scene.at("PersonScene");
+    PersonTarget person = findClosestPerson(ctx);
 
-    // 找最近的行人（class_id==9, y2最大）
-    const DetectionBox* person = nullptr;
-    if (det && !det->boxes.empty()) {
-        float max_y2 = -1.0f;
-        for (const auto& b : det->boxes) {
-            if (b.class_id == 9 && b.y2 > max_y2) {
-                max_y2 = b.y2;
-                person = &b;
+    if (release_hold_frames_ > 0) {
+        if (person.valid && person.distance_m <= sp.person_stop_dist_m) {
+            float center_x = ctx->config.calib.bird_width * 0.5f;
+            float center_band = ctx->config.calib.bird_width * sp.person_center_band_ratio;
+            if (std::abs(person.bird_x - center_x) <= center_band) {
+                startWaiting(person, ctx);
+                return;
             }
         }
-    }
-
-    // 冲刺中人消失 → 继续冲刺
-    if (dashing_ && !person) {
-        auto seg = ctx->seg_result.get();
-        if (seg && !seg->mask.empty())
-            follower_.process(seg->mask, ctx);
+        release_hold_frames_--;
+        followLine(ctx);
         return;
     }
 
-    // 没人且不在冲刺 → 继续循线，等 DetectionTask 切回 NormalScene
-    if (!person) {
-        auto seg = ctx->seg_result.get();
-        if (seg && !seg->mask.empty())
-            follower_.process(seg->mask, ctx);
+    if (!person.valid) {
+        if (waiting_) {
+            lost_frames_++;
+            if (lost_frames_ < sp.person_lost_release_frames) {
+                stopCar(ctx);
+                return;
+            }
+        }
+        resetWaitState();
+        followLine(ctx);
         return;
     }
 
-    float proj_x = (person->x1 + person->x2) * 0.5f;
-    int   frame_h = ctx->frame_height.load(std::memory_order_acquire);
-    float bottom_dist = static_cast<float>(frame_h) - person->y2;
-
-    // ---- 阶段一：人还远（>5px），正常巡线 ----
-    if (bottom_dist > 5.0f) {
-        auto seg = ctx->seg_result.get();
-        if (seg && !seg->mask.empty())
-            follower_.process(seg->mask, ctx);
-        resetGateState();
+    if (!waiting_ && person.distance_m > sp.person_stop_dist_m) {
+        resetWaitState();
+        followLine(ctx);
         return;
     }
 
-    // ---- 人已靠近（≤5px） ----
-
-    // 冲刺中的人重新靠近 → 中止冲刺
-    if (dashing_) {
-        dashing_ = false;
-        resetGateState();
-        last_proj_x_ = proj_x;
+    if (!waiting_) {
+        startWaiting(person, ctx);
+        return;
     }
 
-    // ---- 阶段二：停车等待 + 方向门控 ----
-    ctx->steering_pwm.store(ctx->config.control.pwm_mid);
-    ctx->target_speed.store(0.0f);
+    lost_frames_ = 0;
+    stopCar(ctx);
 
-    if (last_proj_x_ > 0.0f) {
-        // 左半区：点2(30)左向 → 点1(10)左向
-        if (last_proj_x_ > 30.0f && proj_x <= 30.0f) {
-            waiting_for_1_ = true;
-            waiting_for_4_ = false;
-        }
-        if (waiting_for_1_ && last_proj_x_ > 10.0f && proj_x <= 10.0f) {
-            dashing_ = true;
-        }
+    const float center_x = ctx->config.calib.bird_width * 0.5f;
+    const float center_band = ctx->config.calib.bird_width * sp.person_center_band_ratio;
+    const float delta_from_center = person.bird_x - center_x;
+    const bool in_center_band = std::abs(delta_from_center) <= center_band;
+    bool moving_in_center = false;
 
-        // 右半区：点3(610)右向 → 点4(630)右向
-        if (last_proj_x_ < 610.0f && proj_x >= 610.0f) {
-            waiting_for_4_ = true;
-            waiting_for_1_ = false;
-        }
-        if (waiting_for_4_ && last_proj_x_ < 630.0f && proj_x >= 630.0f) {
-            dashing_ = true;
-        }
-
-        // 反向跨越 → 清空对侧序列
-        if (last_proj_x_ < 30.0f && proj_x >= 30.0f) waiting_for_1_ = false;
-        if (last_proj_x_ > 610.0f && proj_x <= 610.0f) waiting_for_4_ = false;
+    if (last_bird_x_ >= 0.0f) {
+        float dx = person.bird_x - last_bird_x_;
+        moving_in_center = in_center_band && std::abs(dx) >= sp.person_move_px;
     }
-    last_proj_x_ = proj_x;
+    last_bird_x_ = person.bird_x;
+
+    bool clear_by_distance = person.distance_m >= sp.person_release_dist_m;
+
+    if (clear_by_distance || moving_in_center) {
+        releaseAndFollow(ctx);
+    }
 }
 
-void PersonScene::resetGateState() {
-    waiting_for_1_ = false;
-    waiting_for_4_ = false;
-    dashing_       = false;
-    last_proj_x_   = -1.0f;
+void PersonScene::updatePersonClassId(SharedContext* ctx) {
+    if (person_class_id_ >= 0) return;
+
+    const auto& classes = ctx->config.ai.detection.classes;
+    for (int i = 0; i < static_cast<int>(classes.size()); ++i) {
+        if (classes[i] == "person") {
+            person_class_id_ = i;
+            break;
+        }
+    }
+}
+
+PersonScene::PersonTarget PersonScene::findClosestPerson(SharedContext* ctx) const {
+    PersonTarget best;
+    if (person_class_id_ < 0) return best;
+
+    auto det = ctx->det_result.get();
+    if (!det || det->boxes.empty()) return best;
+
+    const auto& ctrl = ctx->config.control;
+    const auto& calib = ctx->config.calib;
+    const int crop_off = (ctx->perspective.birdW() - calib.bird_width) / 2;
+    const float car_y = calib.bird_height * ctrl.car_cy_ratio;
+
+    for (const auto& b : det->boxes) {
+        if (b.class_id != person_class_id_ || b.confidence < 0.3f) continue;
+
+        cv::Point2f foot_img((b.x1 + b.x2) * 0.5f, b.y2);
+        cv::Point2f foot_bird = ctx->perspective.toBird(foot_img);
+        foot_bird.x -= static_cast<float>(crop_off);
+
+        if (foot_bird.y < 0.0f || foot_bird.y > static_cast<float>(calib.bird_height)) {
+            continue;
+        }
+
+        float dist_m = (car_y - foot_bird.y) / calib.ppm_y;
+        if (dist_m < -0.05f) continue;
+
+        if (!best.valid || dist_m < best.distance_m) {
+            best.valid = true;
+            best.bird_x = foot_bird.x;
+            best.bird_y = foot_bird.y;
+            best.distance_m = dist_m;
+        }
+    }
+
+    return best;
+}
+
+void PersonScene::stopCar(SharedContext* ctx) {
+    ctx->steering_pwm.store(ctx->config.control.pwm_mid);
+    ctx->target_speed.store(0.0f);
+}
+
+void PersonScene::followLine(SharedContext* ctx) {
+    auto seg = ctx->seg_result.get();
+    if (seg && !seg->mask.empty()) {
+        follower_.process(seg->mask, ctx);
+    }
+}
+
+void PersonScene::startWaiting(const PersonTarget& person, SharedContext* ctx) {
+    waiting_ = true;
+    lost_frames_ = 0;
+    release_hold_frames_ = 0;
+    last_bird_x_ = person.bird_x;
+
+    stopCar(ctx);
+}
+
+void PersonScene::releaseAndFollow(SharedContext* ctx) {
+    const auto& sp = ctx->config.control.scene.at("PersonScene");
+    resetWaitState();
+    release_hold_frames_ = std::max(0, sp.person_release_hold_frames);
+    ctx->target_speed.store(sp.max_speed);
+    followLine(ctx);
+}
+
+void PersonScene::resetWaitState() {
+    waiting_ = false;
+    lost_frames_ = 0;
+    last_bird_x_ = -1.0f;
 }

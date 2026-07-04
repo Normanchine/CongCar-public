@@ -77,11 +77,12 @@ void drawDetections(cv::Mat& frame, const DetResult& det, const DetectionConfig&
 // ---- 绘制鸟瞰图（中线 + 前视点 + 车底中心） ----
 // 注意：调用者需持有 bird_mtx_ 锁
 void drawBirdView(cv::Mat& bird_vis, const std::vector<cv::Point2f>& centers,
-                  const cv::Point2f& aim_pt, float car_cy_ratio) {
+                  const cv::Point2f& aim_pt, float car_cy_ratio,
+                  float car_center_x_offset_ratio) {
     if (centers.empty()) return;
 
     int w = bird_vis.cols, h = bird_vis.rows;
-    float cx = w * 0.5f;
+    float cx = w * (0.5f + car_center_x_offset_ratio);
     float cy = h * car_cy_ratio;
 
     // 绘制中线（黄色小点）
@@ -183,8 +184,15 @@ void DisplayTask::run() {
                 if (ctx_->bird_valid_ && !ctx_->bird_mask_.empty()) {
                     bird_color.setTo(kBirdBg);
                     bird_color.setTo(kBirdTrack, ctx_->bird_mask_);
+                    float center_offset_ratio = 0.0f;
+                    const auto& scene_name = ctx_->scene_manager.currentName();
+                    auto it = ctx_->config.control.scene.find(scene_name);
+                    if (scene_name == "CarScene" && it != ctx_->config.control.scene.end()) {
+                        center_offset_ratio = std::clamp(
+                            it->second.car_center_x_offset_ratio, -0.45f, 0.45f);
+                    }
                     drawBirdView(bird_color, ctx_->bird_centers_, ctx_->bird_aim_pt_,
-                                 ctx_->config.control.car_cy_ratio);
+                                 ctx_->config.control.car_cy_ratio, center_offset_ratio);
                 } else {
                     bird_color.setTo(kBirdBg);
                 }

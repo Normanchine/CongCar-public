@@ -17,7 +17,14 @@ inline void to_json(json& j, const SceneControlParams& s) {
         {"r_light_stop_y_cm", s.r_light_stop_y_cm},
         {"r_light_stop_speed_k", s.r_light_stop_speed_k},
         {"car_cut_ratio", s.car_cut_ratio},
-        {"car_mid_ratio", s.car_mid_ratio}
+        {"car_mid_ratio", s.car_mid_ratio},
+        {"car_center_x_offset_ratio", s.car_center_x_offset_ratio},
+        {"person_stop_dist_m", s.person_stop_dist_m},
+        {"person_release_dist_m", s.person_release_dist_m},
+        {"person_center_band_ratio", s.person_center_band_ratio},
+        {"person_move_px", s.person_move_px},
+        {"person_lost_release_frames", s.person_lost_release_frames},
+        {"person_release_hold_frames", s.person_release_hold_frames}
     };
 }
 
@@ -29,6 +36,14 @@ inline void from_json(const json& j, SceneControlParams& s) {
     if (j.contains("r_light_stop_speed_k")) j.at("r_light_stop_speed_k").get_to(s.r_light_stop_speed_k);
     if (j.contains("car_cut_ratio"))        j.at("car_cut_ratio").get_to(s.car_cut_ratio);
     if (j.contains("car_mid_ratio"))        j.at("car_mid_ratio").get_to(s.car_mid_ratio);
+    if (j.contains("car_center_x_offset_ratio"))
+        j.at("car_center_x_offset_ratio").get_to(s.car_center_x_offset_ratio);
+    if (j.contains("person_stop_dist_m"))             j.at("person_stop_dist_m").get_to(s.person_stop_dist_m);
+    if (j.contains("person_release_dist_m"))          j.at("person_release_dist_m").get_to(s.person_release_dist_m);
+    if (j.contains("person_center_band_ratio"))       j.at("person_center_band_ratio").get_to(s.person_center_band_ratio);
+    if (j.contains("person_move_px"))                 j.at("person_move_px").get_to(s.person_move_px);
+    if (j.contains("person_lost_release_frames"))     j.at("person_lost_release_frames").get_to(s.person_lost_release_frames);
+    if (j.contains("person_release_hold_frames"))     j.at("person_release_hold_frames").get_to(s.person_release_hold_frames);
 }
 
 // ---- ForkConfig 序列化 ----
