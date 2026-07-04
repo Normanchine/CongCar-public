@@ -93,6 +93,9 @@ struct SharedContext {
     std::atomic<int> frame_width{0};
     std::atomic<int> frame_height{0};
 
+    // ---- 车人组合风险：右侧车近距离消失后，PersonScene 进入隐藏行人等待 ----
+    std::atomic<int> right_car_hidden_risk_frames{0};
+
     // ---- 分割→控制 唤醒机制 ----
     std::mutex              seg_cv_mtx_;
     std::condition_variable seg_cv_;
