@@ -18,12 +18,8 @@ struct SceneControlParams {
     float car_center_x_offset_ratio = 0.0f; // CarScene车体参考中心右移比例（相对鸟瞰宽度，右正左负）
 
     // Person 场景专属参数（仅 PersonScene 使用）
-    float person_stop_dist_m = 0.45f;       // 人脚底到车底中心小于该距离时停车（m）
-    float person_release_dist_m = 0.65f;    // 人纵向离开危险距离后可恢复巡线（m）
-    float person_center_band_ratio = 0.18f; // 道路中心等待带半宽（相对鸟瞰裁剪宽度）
-    float person_move_px = 4.0f;            // 判定人横向移动的最小鸟瞰像素变化
-    int   person_lost_release_frames = 8;   // 停车等待中人丢失多少帧后恢复巡线
-    int   person_release_hold_frames = 20;  // 发车后保持巡线帧数，避免刚释放又抖回停车
+    float person_stop_dist_m = 0.45f;       // 人脚底到车底中心小于该距离时停车（m，鸟瞰纵向）
+    int   person_cross_threshold = 1;       // 人过赛道中线次数阈值（达到后解除停车）
 };
 
 struct ForkConfig {

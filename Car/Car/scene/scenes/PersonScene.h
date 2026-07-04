@@ -3,7 +3,9 @@
 #include "../framework/IScene.h"
 #include "../planning/PathFollower.h"
 
-// 检测到person时触发的场景：近距离停车 + 人进入中心带时恢复巡线
+// 行人避让场景 — 简化状态机
+//   DRIVING（默认）→ STOPPING：人进入纵向危险距离（每次进入场景仅触发一次）
+//   STOPPING → DRIVING：人消失 或 人过赛道中线 N 次
 class PersonScene : public IScene {
 public:
     PersonScene() = default;
@@ -12,27 +14,28 @@ public:
     void run(SharedContext* ctx) override;
 
 private:
-    // 巡线跟随（可设外部速度）
-    PathFollower follower_;
-
-    struct PersonTarget {
-        bool valid = false;
-        float bird_x = 0.0f;
-        float bird_y = 0.0f;
-        float distance_m = 0.0f;
+    // 重写onSpeed：停车后的加速恢复逻辑
+    class Follower : public PathFollower {
+    protected:
+        float onSpeed(float error, SharedContext* ctx) override;
     };
 
-    void updatePersonClassId(SharedContext* ctx);
-    PersonTarget findClosestPerson(SharedContext* ctx) const;
-    void stopCar(SharedContext* ctx);
-    void followLine(SharedContext* ctx);
-    void startWaiting(const PersonTarget& person, SharedContext* ctx);
-    void releaseAndFollow(SharedContext* ctx);
-    void resetWaitState();
+    Follower follower_;
 
     int person_class_id_ = -1;
-    bool waiting_ = false;
-    int lost_frames_ = 0;
-    int release_hold_frames_ = 0;
-    float last_bird_x_ = -1.0f;
+    bool has_stopped_ = false;     // 本次进入场景是否已停过车（只停一次）
+    int  cross_count_ = 0;         // 人过赛道中线次数
+    bool was_on_track_ = false;    // 上一帧人是否在赛道上（上升沿检测）
+
+    void stopCar(SharedContext* ctx);
+    void followLine(SharedContext* ctx);
+
+    // 查找最近行人脚底点（原图坐标），返回是否检测到
+    bool findPersonFoot(cv::Point2f& foot_img, SharedContext* ctx) const;
+
+    // 判断人是否在纵向危险距离内（鸟瞰）
+    bool isPersonInDanger(cv::Point2f foot_img, SharedContext* ctx) const;
+
+    // 判断人脚底是否踩在赛道mask上（原图坐标）
+    bool isFootOnTrack(cv::Point2f foot_img, const cv::Mat& seg_mask) const;
 };

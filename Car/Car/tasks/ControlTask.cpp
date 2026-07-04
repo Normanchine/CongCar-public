@@ -30,6 +30,7 @@ void ControlTask::run() {
     if (ctx_->stop.load(std::memory_order_acquire)) return;
 
     uart.startReceive();
+    ctx_->uart_io = &uart;  // 场景可通过ctx直接发串口指令
     std::cout << "[ControlTask] 等待按键启动..." << std::endl;
 
     // ---- 2. 等待下位机按键信号 ----

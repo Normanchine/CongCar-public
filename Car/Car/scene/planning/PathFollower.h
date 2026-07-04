@@ -27,6 +27,14 @@ protected:
                               std::vector<cv::Point2f>& centers,
                               SharedContext* ctx);
 
+    // 纯跟踪 + 航向误差：默认计算车体中心、动态前视、寻找前视点、计算航向误差
+    // 返回 false 表示找不到前视点
+    virtual bool onPurePursuit(const cv::Mat& mask,
+                               const std::vector<cv::Point2f>& centers,
+                               float& error,
+                               cv::Point2f& aim_pt,
+                               SharedContext* ctx);
+
     // 丢线容错：默认盲开+速度衰减
     virtual void onLost(SharedContext* ctx);
 

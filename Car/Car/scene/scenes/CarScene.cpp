@@ -61,3 +61,30 @@ void CarScene::Follower::onFork(cv::Mat& wide_mask, SharedContext* ctx) {
     // ---- 2. 岔路处理（有车无车都要做） ----
     PathFollower::onFork(wide_mask, ctx);
 }
+
+// ---- Follower::onPurePursuit：车体中心横向偏移 ----
+bool CarScene::Follower::onPurePursuit(const cv::Mat& mask,
+                                        const std::vector<cv::Point2f>& centers,
+                                        float& error,
+                                        cv::Point2f& aim_pt,
+                                        SharedContext* ctx) {
+    const auto& ctrl = ctx->config.control;
+    const auto& sp = ctrl.scene.at("CarScene");
+    const auto& calib = ctx->config.calib;
+
+    int w = mask.cols, h = mask.rows;
+    float cx = w * 0.5f, cy = h * ctrl.car_cy_ratio;
+    // 车体中心横向偏移（绕行时偏移车体参考点，避免擦碰）
+    float offset_ratio = std::clamp(sp.car_center_x_offset_ratio, -0.45f, 0.45f);
+    cx += w * offset_ratio;
+
+    float cur_spd = (last_speed_ > 0.01f) ? last_speed_ : sp.max_speed;
+    float aim_dist = ctrl.aim_dist_near + cur_spd * ctrl.lookahead_speed_k;
+    if (!pathplan::findLookAhead(centers, cx, cy, aim_dist, calib.ppm_x, calib.ppm_y, aim_pt))
+        return false;
+
+    error = pathplan::headingError(cx, cy, aim_pt.x, aim_pt.y,
+                                    ctrl.car_length, calib.ppm_x, calib.ppm_y)
+          * ctx->steering_dir;
+    return true;
+}

@@ -11,9 +11,6 @@ bool PathFollower::process(const cv::Mat& seg_mask, SharedContext* ctx) {
         last_speed_ = ctx->target_speed.load(std::memory_order_acquire);
     }
 
-    const auto& ctrl = ctx->config.control;
-    const auto& scene_name = ctx->scene_manager.currentName();
-    const auto& sp   = ctrl.scene.at(scene_name);
     const auto& calib = ctx->config.calib;
 
     // ---- 0. 宽鸟瞰变换 ----
@@ -37,8 +34,6 @@ bool PathFollower::process(const cv::Mat& seg_mask, SharedContext* ctx) {
     int crop_w = calib.bird_width;
     int offset = (wide_mask.cols - crop_w) / 2;
     cv::Mat mask = wide_mask(cv::Rect(offset, 0, crop_w, wide_mask.rows)).clone();
-    float ppm_x = calib.ppm_x;
-    float ppm_y = calib.ppm_y;
 
     if (ctx->config.debug_mode) {
         std::lock_guard<std::mutex> lk(ctx->bird_mtx_);
@@ -57,22 +52,11 @@ bool PathFollower::process(const cv::Mat& seg_mask, SharedContext* ctx) {
     }
     lost_frames_ = 0;
 
-    // ---- 5. 纯跟踪 + 航向误差 ----
-    int w = mask.cols, h = mask.rows;
-    float cx = w * 0.5f, cy = h * ctrl.car_cy_ratio;
-    if (scene_name == "CarScene") {
-        float offset_ratio = std::clamp(sp.car_center_x_offset_ratio, -0.45f, 0.45f);
-        cx += w * offset_ratio;
-    }
-    float cur_spd = (last_speed_ > 0.01f) ? last_speed_ : sp.max_speed;
-    float aim_dist = ctrl.aim_dist_near + cur_spd * ctrl.lookahead_speed_k;
+    // ---- 5. 纯跟踪 + 航向误差（可重写） ----
     cv::Point2f aim_pt;
-    if (!pathplan::findLookAhead(centers, cx, cy, aim_dist, ppm_x, ppm_y, aim_pt))
+    float error;
+    if (!onPurePursuit(mask, centers, error, aim_pt, ctx))
         return true;
-
-    float error = pathplan::headingError(cx, cy, aim_pt.x, aim_pt.y,
-                                         ctrl.car_length, ppm_x, ppm_y)
-                * ctx->steering_dir;
 
     // ---- 6. PD + PWM（可重写） ----
     float pwm = onPD(error, ctx);
@@ -110,6 +94,28 @@ void PathFollower::onCenterline(const cv::Mat& mask,
                                  SharedContext* /*ctx*/) {
     pathplan::extractCenterline(mask, centers);
     pathplan::smoothCenterline(centers);
+}
+
+bool PathFollower::onPurePursuit(const cv::Mat& mask,
+                                  const std::vector<cv::Point2f>& centers,
+                                  float& error,
+                                  cv::Point2f& aim_pt,
+                                  SharedContext* ctx) {
+    const auto& ctrl = ctx->config.control;
+    const auto& sp = ctrl.scene.at(ctx->scene_manager.currentName());
+    const auto& calib = ctx->config.calib;
+
+    int w = mask.cols, h = mask.rows;
+    float cx = w * 0.5f, cy = h * ctrl.car_cy_ratio;
+    float cur_spd = (last_speed_ > 0.01f) ? last_speed_ : sp.max_speed;
+    float aim_dist = ctrl.aim_dist_near + cur_spd * ctrl.lookahead_speed_k;
+    if (!pathplan::findLookAhead(centers, cx, cy, aim_dist, calib.ppm_x, calib.ppm_y, aim_pt))
+        return false;
+
+    error = pathplan::headingError(cx, cy, aim_pt.x, aim_pt.y,
+                                    ctrl.car_length, calib.ppm_x, calib.ppm_y)
+          * ctx->steering_dir;
+    return true;
 }
 
 void PathFollower::onLost(SharedContext* ctx) {

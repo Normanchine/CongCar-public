@@ -13,6 +13,9 @@
 #include "../scene/framework/SceneManager.h"
 #include <opencv2/core/mat.hpp>
 #include "../threadpool/ThreadPool.h"
+
+class UartIO;  // 前向声明，指针由ControlTask注入
+
 // ---- 语义分割共享结果 ----
 struct SegResult {
     cv::Mat   mask;        // (H,W) CV_8UC1，像素值=类别索引
@@ -76,6 +79,9 @@ struct SharedContext {
     std::atomic<float> target_speed{0};      // 目标速度
     std::atomic<float> last_error{0};        // 跨场景error继承（防PD脉冲）
     float steering_dir = 1.0f;               // 转向方向（AR图像左右镜像时置-1）
+
+    // ---- UART直发（场景紧急停车可绕过ControlTask下发循环） ----
+    UartIO* uart_io = nullptr;
 
     // ---- 透视变换 ----
     PerspectiveMapper perspective;
