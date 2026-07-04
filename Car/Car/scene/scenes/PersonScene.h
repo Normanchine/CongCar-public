@@ -18,9 +18,12 @@ private:
     // 重写onSpeed：停车后的加速恢复逻辑
     class Follower : public PathFollower {
     public:
-        float center_offset_ratio = 0.0f; // 右正左负，发车后短暂偏移避人
+        int cut_side = -1; // -1=不切, 0=切左, 1=切右
+        float car_context_offset_ratio = 0.0f; // 车后人场景继承CarScene实体中心偏移
+        float person_offset_ratio = 0.0f; // 发车后短暂偏移避人
 
     protected:
+        void onFork(cv::Mat& wide_mask, SharedContext* ctx) override;
         bool onPurePursuit(const cv::Mat& mask,
                            const std::vector<cv::Point2f>& centers,
                            float& error,
@@ -47,6 +50,8 @@ private:
     void followLine(SharedContext* ctx);
     void resetWaitState();
     void releaseAndFollow(float avoid_offset_ratio, SharedContext* ctx);
+    void applyCarPersonContext(SharedContext* ctx);
+    void clearCarPersonContext();
 
     // 查找最近行人脚底点（原图坐标），返回是否检测到
     bool findPersonFoot(cv::Point2f& foot_img, SharedContext* ctx);

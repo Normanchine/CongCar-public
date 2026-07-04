@@ -21,7 +21,7 @@ void PersonScene::run(SharedContext* ctx) {
     if (release_hold_frames_ > 0) {
         release_hold_frames_--;
         if (release_hold_frames_ == 0) {
-            follower_.center_offset_ratio = 0.0f;
+            clearCarPersonContext();
         }
         followLine(ctx);
         return;
@@ -56,6 +56,7 @@ void PersonScene::run(SharedContext* ctx) {
     if (hidden_car_person_risk || car_person_waiting_) {
         car_person_waiting_ = true;
         waiting_ = false;
+        applyCarPersonContext(ctx);
         float avoid_offset_ratio = 0.0f;
         if (shouldReleaseCarPerson(foot_bird, ctx, avoid_offset_ratio)) {
             release_ready_frames_++;
@@ -248,7 +249,7 @@ void PersonScene::resetWaitState() {
     release_ready_frames_ = 0;
     tracker_valid_ = false;
     foot_dx_px_ = 0.0f;
-    follower_.center_offset_ratio = 0.0f;
+    clearCarPersonContext();
 }
 
 void PersonScene::releaseAndFollow(float avoid_offset_ratio, SharedContext* ctx) {
@@ -261,10 +262,23 @@ void PersonScene::releaseAndFollow(float avoid_offset_ratio, SharedContext* ctx)
     tracker_valid_ = false;
     foot_dx_px_ = 0.0f;
     release_hold_frames_ = std::max(0, sp.person_release_hold_frames);
-    follower_.center_offset_ratio = avoid_offset_ratio;
+    follower_.person_offset_ratio = avoid_offset_ratio;
     ctx->right_car_hidden_risk_frames.store(0, std::memory_order_release);
     ctx->target_speed.store(sp.max_speed);
     followLine(ctx);
+}
+
+void PersonScene::applyCarPersonContext(SharedContext* ctx) {
+    const auto& car_sp = ctx->config.control.scene.at("CarScene");
+    follower_.cut_side = 1; // 车后人场景只处理右侧出租车，继续切右
+    follower_.car_context_offset_ratio =
+        std::clamp(car_sp.car_center_x_offset_ratio, -0.45f, 0.45f);
+}
+
+void PersonScene::clearCarPersonContext() {
+    follower_.cut_side = -1;
+    follower_.car_context_offset_ratio = 0.0f;
+    follower_.person_offset_ratio = 0.0f;
 }
 
 bool PersonScene::isRightSideCarPresent(SharedContext* ctx) {
@@ -315,6 +329,23 @@ bool PersonScene::findRightSideCar(float& dist_m, SharedContext* ctx) {
     return true;
 }
 
+void PersonScene::Follower::onFork(cv::Mat& wide_mask, SharedContext* ctx) {
+    if (cut_side >= 0) {
+        const auto& sp = ctx->config.control.scene.at("CarScene");
+        float ratio = sp.car_cut_ratio;
+        int w = wide_mask.cols;
+        int cut_w = static_cast<int>(w * ratio);
+
+        if (cut_side == 0) {
+            wide_mask(cv::Rect(0, 0, cut_w, wide_mask.rows)) = 0;
+        } else {
+            wide_mask(cv::Rect(w - cut_w, 0, cut_w, wide_mask.rows)) = 0;
+        }
+    }
+
+    PathFollower::onFork(wide_mask, ctx);
+}
+
 bool PersonScene::Follower::onPurePursuit(const cv::Mat& mask,
                                            const std::vector<cv::Point2f>& centers,
                                            float& error,
@@ -326,7 +357,8 @@ bool PersonScene::Follower::onPurePursuit(const cv::Mat& mask,
 
     int w = mask.cols, h = mask.rows;
     float cx = w * 0.5f;
-    cx += w * std::clamp(center_offset_ratio, -0.20f, 0.20f);
+    float offset_ratio = car_context_offset_ratio + person_offset_ratio;
+    cx += w * std::clamp(offset_ratio, -0.45f, 0.45f);
     float cy = h * ctrl.car_cy_ratio;
 
     float cur_spd = (last_speed_ > 0.01f) ? last_speed_ : sp.max_speed;
