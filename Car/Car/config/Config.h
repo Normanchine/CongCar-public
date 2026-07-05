@@ -8,10 +8,6 @@ struct SceneControlParams {
     float pid_p     = 0.0f;
     float pid_d     = 0.0f;
 
-    // R_Light 场景专属参数（仅 RLightScene 使用）
-    float r_light_stop_y_cm    = 40.0f;   // 停车位置基准值 (cm)
-    float r_light_stop_speed_k = 0.5f;    // 车速→停车阈值系数
-
     // Car 场景专属参数（仅 CarScene 使用）
     float car_cut_ratio  = 0.5f;           // 车侧切除比例（0~1，0.5=切一半宽度）
     float car_mid_ratio  = 0.67f;          // 车侧判断中线比例（0~1，0.67=鸟瞰2/3处为分界）
@@ -96,10 +92,21 @@ struct DetectionConfig {
     std::map<std::string, std::string> scene_map;
 };
 
+struct VlmConfig {
+    std::string api_key          = "";
+    std::string base_url         = "https://qianfan.baidubce.com/v2";
+    std::string model            = "ernie-4.5-turbo-vl-32k";
+    float       deadline_seconds = 4.0f;
+    int         max_upload_width  = 250;
+    int         max_upload_height = 96;
+    float       box_padding_ratio = 0.06f;
+    int         stable_frames     = 3;
+};
+
 struct AIConfig {
     DetectionConfig    detection;
     SegmentationConfig segmentation;
-    std::string        ocr_model_path;
+    VlmConfig          vlm;
 };
 
 struct CalibConfig {

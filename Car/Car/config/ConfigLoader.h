@@ -14,8 +14,6 @@ inline void to_json(json& j, const SceneControlParams& s) {
         {"max_speed", s.max_speed},
         {"pid_p", s.pid_p},
         {"pid_d", s.pid_d},
-        {"r_light_stop_y_cm", s.r_light_stop_y_cm},
-        {"r_light_stop_speed_k", s.r_light_stop_speed_k},
         {"car_cut_ratio", s.car_cut_ratio},
         {"car_mid_ratio", s.car_mid_ratio},
         {"car_center_x_offset_ratio", s.car_center_x_offset_ratio},
@@ -40,8 +38,6 @@ inline void from_json(const json& j, SceneControlParams& s) {
     j.at("max_speed").get_to(s.max_speed);
     j.at("pid_p").get_to(s.pid_p);
     j.at("pid_d").get_to(s.pid_d);
-    if (j.contains("r_light_stop_y_cm"))    j.at("r_light_stop_y_cm").get_to(s.r_light_stop_y_cm);
-    if (j.contains("r_light_stop_speed_k")) j.at("r_light_stop_speed_k").get_to(s.r_light_stop_speed_k);
     if (j.contains("car_cut_ratio"))        j.at("car_cut_ratio").get_to(s.car_cut_ratio);
     if (j.contains("car_mid_ratio"))        j.at("car_mid_ratio").get_to(s.car_mid_ratio);
     if (j.contains("car_center_x_offset_ratio"))
@@ -173,20 +169,46 @@ inline void from_json(const json& j, DetectionConfig& d) {
     if (j.contains("scene_map"))  j.at("scene_map").get_to(d.scene_map);
 }
 
-// ---- AIConfig 序列化（嵌套 segmentation + detection） ----
+// ---- VlmConfig 序列化 ----
+
+inline void to_json(json& j, const VlmConfig& v) {
+    j = json{
+        {"api_key",           v.api_key},
+        {"base_url",          v.base_url},
+        {"model",             v.model},
+        {"deadline_seconds",  v.deadline_seconds},
+        {"max_upload_width",  v.max_upload_width},
+        {"max_upload_height", v.max_upload_height},
+        {"box_padding_ratio", v.box_padding_ratio},
+        {"stable_frames",     v.stable_frames},
+    };
+}
+
+inline void from_json(const json& j, VlmConfig& v) {
+    if (j.contains("api_key"))           j.at("api_key").get_to(v.api_key);
+    if (j.contains("base_url"))          j.at("base_url").get_to(v.base_url);
+    if (j.contains("model"))             j.at("model").get_to(v.model);
+    if (j.contains("deadline_seconds"))  j.at("deadline_seconds").get_to(v.deadline_seconds);
+    if (j.contains("max_upload_width"))  j.at("max_upload_width").get_to(v.max_upload_width);
+    if (j.contains("max_upload_height")) j.at("max_upload_height").get_to(v.max_upload_height);
+    if (j.contains("box_padding_ratio")) j.at("box_padding_ratio").get_to(v.box_padding_ratio);
+    if (j.contains("stable_frames"))     j.at("stable_frames").get_to(v.stable_frames);
+}
+
+// ---- AIConfig 序列化（嵌套 segmentation + detection + vlm） ----
 
 inline void to_json(json& j, const AIConfig& c) {
     j = json{
         {"segmentation", c.segmentation},
         {"detection",    c.detection},
-        {"ocr_model_path", c.ocr_model_path},
+        {"vlm",          c.vlm},
     };
 }
 
 inline void from_json(const json& j, AIConfig& c) {
     if (j.contains("segmentation")) j.at("segmentation").get_to(c.segmentation);
     if (j.contains("detection"))    j.at("detection").get_to(c.detection);
-    if (j.contains("ocr_model_path")) j.at("ocr_model_path").get_to(c.ocr_model_path);
+    if (j.contains("vlm"))          j.at("vlm").get_to(c.vlm);
 }
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(UartConfig,

@@ -1,5 +1,6 @@
 #include "thread/Car.h"
 #include <csignal>
+#include <curl/curl.h>
 
 namespace {
 Car* g_car = nullptr;
@@ -12,6 +13,8 @@ void onSignal(int) {
 } // namespace
 
 int main(int argc, char* argv[]) {
+    curl_global_init(CURL_GLOBAL_ALL);
+
     Car car;
     g_car = &car;
 
@@ -19,11 +22,13 @@ int main(int argc, char* argv[]) {
     std::signal(SIGTERM, onSignal);
 
     if (!car.init(argc, argv)) {
+        curl_global_cleanup();
         return -1;
     }
 
     car.start();
     car.wait();
 
+    curl_global_cleanup();
     return 0;
 }

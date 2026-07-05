@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(OpenCV REQUIRED)
 find_package(Threads REQUIRED)
 find_package(nlohmann_json REQUIRED)
+find_package(CURL REQUIRED)
 
 include_directories(${CMAKE_SOURCE_DIR})
 
@@ -17,7 +18,6 @@ add_executable(car
     scene/planning/PathFollower.cpp
     scene/scenes/CarScene.cpp
     scene/scenes/PersonScene.cpp
-    scene/scenes/RLightScene.cpp
     scene/scenes/TrafficSignScene.cpp
     hal/memory/shared_memory_manager.cpp
     hal/uart/UartIO.cpp
@@ -33,6 +33,7 @@ add_executable(car
 target_link_libraries(car
     ${OpenCV_LIBS}
     Threads::Threads
+    CURL::libcurl
     rknnrt
     rt
 )
