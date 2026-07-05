@@ -14,6 +14,7 @@ inline void to_json(json& j, const SceneControlParams& s) {
         {"max_speed", s.max_speed},
         {"pid_p", s.pid_p},
         {"pid_d", s.pid_d},
+        {"fork_speed", s.fork_speed},
         {"car_cut_ratio", s.car_cut_ratio},
         {"car_mid_ratio", s.car_mid_ratio},
         {"car_center_x_offset_ratio", s.car_center_x_offset_ratio},
@@ -38,6 +39,7 @@ inline void from_json(const json& j, SceneControlParams& s) {
     j.at("max_speed").get_to(s.max_speed);
     j.at("pid_p").get_to(s.pid_p);
     j.at("pid_d").get_to(s.pid_d);
+    if (j.contains("fork_speed"))          j.at("fork_speed").get_to(s.fork_speed);
     if (j.contains("car_cut_ratio"))        j.at("car_cut_ratio").get_to(s.car_cut_ratio);
     if (j.contains("car_mid_ratio"))        j.at("car_mid_ratio").get_to(s.car_mid_ratio);
     if (j.contains("car_center_x_offset_ratio"))

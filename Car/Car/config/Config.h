@@ -7,6 +7,7 @@ struct SceneControlParams {
     float max_speed = 1.0f;
     float pid_p     = 0.0f;
     float pid_d     = 0.0f;
+    float fork_speed = 0.3f;   // 岔路口锁舵期间的恒定速度
 
     // Car 场景专属参数（仅 CarScene 使用）
     float car_cut_ratio  = 0.5f;           // 车侧切除比例（0~1，0.5=切一半宽度）

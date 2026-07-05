@@ -66,12 +66,54 @@ size_t curlWriteCallback(void* contents, size_t size, size_t nmemb, void* userp)
 
 } // anonymous namespace
 
-// ---- 重写 onFork：根据 VLM 结果选择保留侧 ----
+// ---- 重写 onFork：岔路口锁舵降速 ----
 void TrafficSignScene::Follower::onFork(cv::Mat& wide_mask, SharedContext* ctx) {
     const auto& fk = ctx->config.control.fork;
+
+    // 保存原始 mask（锁舵期间需恢复，撤销切除）
+    cv::Mat original;
+    if (fork_lock_ || fork_state_.persist_remaining == 0) {
+        original = wide_mask.clone();
+    }
+
+    // 调用 handleFork 进行分叉检测
     pathplan::handleFork(wide_mask, fork_state_,
                          fork_side, fk.confirm_rows,
                          fk.persist_frames, fk.width_threshold, 1);
+
+    // 第一帧进入 persist → 锁定转向
+    if (!fork_lock_ && fork_state_.persist_remaining > 0) {
+        fork_lock_ = true;
+        fork_pwm_  = last_pwm_;   // 进入分叉口的自然入弯 PWM
+    }
+
+    // 锁舵期间：恢复原始 mask，不切赛道
+    if (fork_lock_ && fork_state_.persist_remaining > 0) {
+        original.copyTo(wide_mask);
+    }
+
+    // persist 结束 → 解锁，后续帧正常切赛道
+    if (fork_lock_ && fork_state_.persist_remaining == 0) {
+        fork_lock_ = false;
+    }
+}
+
+// ---- 重写 onPD：锁舵期间返回冻结 PWM ----
+float TrafficSignScene::Follower::onPD(float error, SharedContext* ctx) {
+    if (fork_lock_) {
+        last_error_ = 0.0f;  // 清零防止解锁后 D 项跳变
+        return fork_pwm_;
+    }
+    return PathFollower::onPD(error, ctx);
+}
+
+// ---- 重写 onSpeed：锁舵期间使用岔路口恒定低速 ----
+float TrafficSignScene::Follower::onSpeed(float error, SharedContext* ctx) {
+    if (fork_lock_) {
+        const auto& sp = ctx->config.control.scene.at("TrafficSignScene");
+        return sp.fork_speed;
+    }
+    return PathFollower::onSpeed(error, ctx);
 }
 
 // ---- 清理 VLM 输出文本 ----

@@ -34,12 +34,17 @@ private:
     // 清理 VLM 输出文本
     static std::string cleanOutput(const std::string& text);
 
-    // 重写 onFork：根据 VLM 结果选择保留侧
+    // 重写 onFork/onPD/onSpeed：岔路口锁舵降速
     class Follower : public PathFollower {
     public:
         int fork_side = 0;  // 0=左(直走)，1=右(右转)
     protected:
-        void onFork(cv::Mat& wide_mask, SharedContext* ctx) override;
+        void  onFork(cv::Mat& wide_mask, SharedContext* ctx) override;
+        float onPD(float error, SharedContext* ctx) override;
+        float onSpeed(float error, SharedContext* ctx) override;
+
+        bool  fork_lock_ = false;   // 岔路锁舵中
+        float fork_pwm_  = 0.0f;   // 锁定的 PWM
     };
 
     Follower follower_;
