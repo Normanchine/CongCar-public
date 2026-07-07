@@ -67,14 +67,14 @@ void DetectionTask::run() {
         auto t_post_start = std::chrono::steady_clock::now();
 
         if (outputs.size() >= 2) {
-            int orig_w = ctx_->frame_width.load(std::memory_order_acquire);
-            int orig_h = ctx_->frame_height.load(std::memory_order_acquire);
+            int orig_w = ctx_->full_frame_width.load(std::memory_order_acquire);
+            int orig_h = ctx_->full_frame_height.load(std::memory_order_acquire);
 
-            // PP-YOLOE后处理：output[0]=cls(12×3360), output[1]=reg(3360×4)
+            // PP-YOLOE后处理：output[0]=cls(3×1680), output[1]=reg(1680×4)
             auto detections = ppyoloe::postprocess(
                 outputs[0].ptr<float>(0), outputs[1].ptr<float>(0),
                 orig_w, orig_h,
-                orig_h, 0,    // 工作帧即全图，无额外裁剪
+                orig_h, 0,    // 检测走全图，无额外裁剪
                 det_cfg.confidence_threshold, det_cfg.nms_threshold);
 
             // 右侧车近距离消失 = 车后藏人风险。只维护风险标记，不改变场景选择规则。
@@ -95,12 +95,14 @@ void DetectionTask::run() {
                 bool right_car_near = false;
                 float mid_x = ctx_->perspective.birdW() * car_sp.car_mid_ratio;
                 float car_y = calib.bird_height * ctrl.car_cy_ratio;
+                float crop_y = ctx_->config.frame_crop.enable
+                    ? static_cast<float>(ctx_->config.frame_crop.y) : 0.0f;
 
                 for (const auto& d : detections) {
                     if (d.class_id != right_car_class_id_ || d.score < 0.4f) continue;
 
-                    cv::Point2f bl = ctx_->perspective.toBird({d.x1, d.y2});
-                    cv::Point2f br = ctx_->perspective.toBird({d.x2, d.y2});
+                    cv::Point2f bl = ctx_->perspective.toBird({d.x1, d.y2 - crop_y});
+                    cv::Point2f br = ctx_->perspective.toBird({d.x2, d.y2 - crop_y});
                     float car_cx = (bl.x + br.x) * 0.5f;
                     if (car_cx < mid_x) continue;
 
@@ -128,7 +130,7 @@ void DetectionTask::run() {
                 }
             }
 
-            // 转换为DetResult
+            // 转换为DetResult（全图坐标）
             DetResult result;
             result.frame_id = ++frame_counter;
             result.width    = orig_w;

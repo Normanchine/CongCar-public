@@ -4,6 +4,7 @@
 #include "../planning/PathFollower.h"
 #include "../../config/Config.h"
 #include <atomic>
+#include <chrono>
 #include <memory>
 #include <opencv2/core/mat.hpp>
 
@@ -55,4 +56,5 @@ private:
     std::shared_ptr<std::atomic<int>> vlm_result_;  // -1=进行中, 0=直走, 1=右转
     int      cached_fork_side_ = 0;
     int      stable_count_     = 0;
+    std::chrono::steady_clock::time_point vlm_request_start_;
 };

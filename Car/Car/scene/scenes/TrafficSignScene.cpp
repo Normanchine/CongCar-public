@@ -7,7 +7,9 @@
 #include <nlohmann/json.hpp>
 #include <algorithm>
 #include <cstring>
+#include <future>
 #include <iostream>
+#include <sstream>
 #include <thread>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
@@ -16,7 +18,7 @@ REGISTER_SCENE(TrafficSignScene)
 
 using json = nlohmann::json;
 
-// ---- VLM 系统提示词（与 Python 原型一致） ----
+// ---- VLM 系统提示词（与 Python yolo_vlm_decision(1).py 一致） ----
 static const char* kVlmSystemPrompt = R"PROMPT(你是智能车固定岔路口的快速视觉决策模块。
 
 输入是一张由 YOLO 裁剪得到的中文路口指示牌图片。
@@ -28,7 +30,7 @@ static const char* kVlmSystemPrompt = R"PROMPT(你是智能车固定岔路口的
 根据指示牌文字的最终真实含义，只输出一个动作。
 
 右转必须存在明确依据，只有以下情况才能输出"右转"：
-1. 指示牌明确要求、推荐或引导走右侧、右转、进入内圈、走近道；
+1. 指示牌明确要求、推荐或引导走右侧、右转、进入内圈、走近道、抄近道、走近路、走捷径、选择更短路线；
 2. 指示牌明确表示直道不能走、直行禁止、直道封闭或继续直行危险。
 
 其他所有情况都输出"直走"。
@@ -39,6 +41,8 @@ static const char* kVlmSystemPrompt = R"PROMPT(你是智能车固定岔路口的
 - "不是、不能、不许、不要、并不"等表示否定；
 - "但是、不过、然而、却"等之后的最终结论优先；
 - 仅出现"右道、右侧、右转"等词，但没有明确推荐右侧，不构成右转依据；
+- "抄近道、走近道、近路、捷径、更短路线"通常表示进入中间小圈，是右转依据；
+- 但如果近道、捷径、右转、右侧等表达被"不要、禁止、不能、别、不许、并不、不是、才怪"等否定，或被后文转折推翻，则不能据此右转，必须按整句最终含义判断；
 - 右道条件较差但直道明确无法通行时，仍输出"右转"；
 - 图片模糊、文字无法识别、语义不明确或信息无关时，输出"直走"。
 
@@ -116,7 +120,7 @@ float TrafficSignScene::Follower::onSpeed(float error, SharedContext* ctx) {
     return PathFollower::onSpeed(error, ctx);
 }
 
-// ---- 清理 VLM 输出文本 ----
+// ---- 清理 VLM 输出文本（与 Python 一致：移除空白+中英文标点） ----
 std::string TrafficSignScene::cleanOutput(const std::string& text) {
     std::string result;
     result.reserve(text.size());
@@ -127,6 +131,21 @@ std::string TrafficSignScene::cleanOutput(const std::string& text) {
         if (ch == ',' || ch == '.' || ch == '!' || ch == '?' ||
             ch == ':' || ch == ';' || ch == '"' || ch == '\'' || ch == '`') continue;
         result.push_back(ch);
+    }
+    // 过滤中文标点（UTF-8 多字节序列）
+    static const std::string kCnPunct[] = {
+        "\xEF\xBC\x8C",  // ，
+        "\xE3\x80\x82",  // 。
+        "\xEF\xBC\x81",  // ！
+        "\xEF\xBC\x9F",  // ？
+        "\xEF\xBC\x9A",  // ：
+        "\xEF\xBC\x9B",  // ；
+    };
+    for (const auto& p : kCnPunct) {
+        size_t pos;
+        while ((pos = result.find(p)) != std::string::npos) {
+            result.erase(pos, p.length());
+        }
     }
     return result;
 }
@@ -193,21 +212,26 @@ int TrafficSignScene::callVlmApi(const std::vector<uint8_t>& jpeg_bytes,
         throw std::runtime_error(
             "未配置 VLM API Key（config.vlm.api_key）");
 
+    std::cout << "[TrafficSignScene] VLM 请求: url=" << (cfg.base_url + "/chat/completions")
+              << " model=" << cfg.model
+              << " deadline=" << cfg.deadline_seconds << "s"
+              << " key_prefix=" << api_key.substr(0, 12) << "..." << std::endl;
+
     // 1. Base64 编码 → data URL
     std::string b64 = base64::encode(jpeg_bytes);
     std::string image_url = "data:image/jpeg;base64," + b64;
 
-    // 2. 构造请求体
+    // 2. 构造请求体（stream=true，与 Python 一致）
     json request_body = {
         {"model",       cfg.model},
         {"temperature", 0},
         {"max_tokens",  4},
-        {"stream",      false},
+        {"stream",      true},
         {"messages", json::array({
             {{"role", "system", "content", kVlmSystemPrompt}},
             {{"role", "user",   "content", json::array({
                 {{"type", "image_url", "image_url", {{"url", image_url}, {"detail", "low"}}}},
-                {{"type", "text",       "text", "只输出最终动作。"}}
+                {{"type", "text",       "text", "只输出最终动作。注意先读完整句：近道、捷径、更短路线类表达通常指右转，但被否定或被\"才怪\"等推翻时不能按右转处理。"}}
             })}}
         })}
     };
@@ -253,19 +277,40 @@ int TrafficSignScene::callVlmApi(const std::vector<uint8_t>& jpeg_bytes,
             "千帆 API 返回 HTTP " + std::to_string(http_code) + ": " + response_buf.data);
     }
 
-    // 4. 解析响应
-    json resp = json::parse(response_buf.data);
-    std::string content = resp["choices"][0]["message"]["content"].get<std::string>();
+    // 4. 解析 SSE 流式响应（与 Python 一致：逐 chunk 拼内容，早期匹配）
+    std::string raw_output;
+    {
+        std::istringstream stream(response_buf.data);
+        std::string line;
+        while (std::getline(stream, line)) {
+            // SSE 格式: "data: <json>" 或 "data: [DONE]"
+            if (line.compare(0, 6, "data: ") != 0) continue;
+            std::string payload = line.substr(6);
+            if (payload == "[DONE]") break;
+
+            try {
+                auto chunk = json::parse(payload);
+                if (chunk.contains("choices") && !chunk["choices"].empty()) {
+                    auto& delta = chunk["choices"][0]["delta"];
+                    if (delta.contains("content")) {
+                        raw_output += delta["content"].get<std::string>();
+                    }
+                }
+            } catch (const json::parse_error&) {
+                // 忽略无法解析的行
+            }
+        }
+    }
 
     // 5. 清理 + 匹配动作
-    std::string cleaned = cleanOutput(content);
+    std::string cleaned = cleanOutput(raw_output);
     int action = parseAction(cleaned);
     if (action < 0) {
         action = parseEarlyAction(cleaned);
     }
     if (action < 0) {
         std::cerr << "[TrafficSignScene] VLM 输出无法解析: \""
-                  << content << "\" → 清洗后: \"" << cleaned
+                  << raw_output << "\" → 清洗后: \"" << cleaned
                   << "\"，兜底直走" << std::endl;
         return 0;
     }
@@ -281,27 +326,43 @@ void TrafficSignScene::run(SharedContext* ctx) {
     const auto& vlm_cfg = ctx->config.ai.vlm;
     const auto& det_cfg = ctx->config.ai.detection;
 
-    // ---- 查找 traffic_sign class_id（只查一次） ----
+    // ---- 查找 sign class_id（只查一次） ----
     if (traffic_sign_class_id_ < 0) {
         const auto& classes = det_cfg.classes;
         for (int i = 0; i < static_cast<int>(classes.size()); ++i) {
-            if (classes[i] == "traffic_sign") {
+            if (classes[i] == "sign") {
                 traffic_sign_class_id_ = i;
+                std::cout << "[TrafficSignScene] 找到 sign class_id=" << i << std::endl;
                 break;
             }
+        }
+        if (traffic_sign_class_id_ < 0) {
+            std::cerr << "[TrafficSignScene] 未找到 sign 类别！classes=[";
+            for (size_t i = 0; i < classes.size(); ++i) {
+                if (i > 0) std::cerr << ",";
+                std::cerr << classes[i];
+            }
+            std::cerr << "]" << std::endl;
         }
     }
 
     // ---- 获取最新检测结果 ----
     auto det = ctx->det_result.get();
 
+    // ---- 诊断计数器（每60帧打印一次） ----
+    static int diag_counter = 0;
+    diag_counter++;
+
     // ---- VLM 状态机 ----
     switch (vlm_state_) {
 
     case VlmState::IDLE: {
+        ctx->vlm_state.store(0, std::memory_order_release); // 通知显示：IDLE
         const DetectionBox* best = nullptr;
         float best_score = 0.0f;
+        int total_boxes = 0;
         if (det && traffic_sign_class_id_ >= 0) {
+            total_boxes = static_cast<int>(det->boxes.size());
             for (const auto& b : det->boxes) {
                 if (b.class_id == traffic_sign_class_id_ && b.confidence > best_score) {
                     best_score = b.confidence;
@@ -312,6 +373,13 @@ void TrafficSignScene::run(SharedContext* ctx) {
 
         if (best && best_score > 0.4f) {
             stable_count_++;
+            if (diag_counter % 60 == 0) {
+                std::cout << "[TrafficSignScene] sign检测到 best_score=" << best_score
+                          << " stable=" << stable_count_ << "/" << vlm_cfg.stable_frames
+                          << " box=(" << best->x1 << "," << best->y1
+                          << ")-(" << best->x2 << "," << best->y2 << ")"
+                          << " total_boxes=" << total_boxes << std::endl;
+            }
             if (stable_count_ >= vlm_cfg.stable_frames) {
                 cv::Mat work_frame;
                 if (ctx->work_frame_queue.tryConsume(work_frame)) {
@@ -323,17 +391,35 @@ void TrafficSignScene::run(SharedContext* ctx) {
                               << " 图片大小=" << jpeg_bytes.size() / 1024 << "KB"
                               << std::endl;
 
+                    // 记录请求开始时间，通知显示
+                    vlm_request_start_ = std::chrono::steady_clock::now();
+                    ctx->vlm_state.store(1, std::memory_order_release); // REQUESTING
+
                     // detached thread + shared_ptr<atomic>：避免 future 析构阻塞
                     vlm_result_ = std::make_shared<std::atomic<int>>(-1);
                     std::thread([jpeg = std::move(jpeg_bytes),
-                                 &cfg = vlm_cfg,
+                                 cfg = vlm_cfg,
                                  result = vlm_result_]() {
-                        try {
-                            int action = callVlmApi(jpeg, cfg);
-                            result->store(action, std::memory_order_release);
-                        } catch (const std::exception& e) {
-                            std::cerr << "[TrafficSignScene] VLM 请求异常: "
-                                      << e.what() << "，兜底直走" << std::endl;
+                        // promise/future 硬截止超时（不依赖 CURLOPT_TIMEOUT）
+                        std::promise<int> p;
+                        auto f = p.get_future();
+
+                        std::thread([&]() {
+                            try {
+                                p.set_value(callVlmApi(jpeg, cfg));
+                            } catch (...) {
+                                try { p.set_value(0); } catch (...) {}
+                            }
+                        }).detach();
+
+                        auto deadline_ms = std::chrono::milliseconds(
+                            static_cast<long>(cfg.deadline_seconds * 1000));
+
+                        if (f.wait_for(deadline_ms) == std::future_status::ready) {
+                            result->store(f.get(), std::memory_order_release);
+                        } else {
+                            std::cerr << "[TrafficSignScene] VLM 请求超时 ("
+                                      << cfg.deadline_seconds << "s)，兜底直走" << std::endl;
                             result->store(0, std::memory_order_release);
                         }
                     }).detach();
@@ -345,6 +431,12 @@ void TrafficSignScene::run(SharedContext* ctx) {
                 stable_count_ = 0;
             }
         } else {
+            if (stable_count_ > 0 && diag_counter % 60 == 0) {
+                std::cout << "[TrafficSignScene] 未检测到sign (best_score="
+                          << best_score << " < 0.4 or no sign box)"
+                          << " total_boxes=" << total_boxes
+                          << " class_id=" << traffic_sign_class_id_ << std::endl;
+            }
             stable_count_ = 0;
         }
         break;
@@ -356,8 +448,18 @@ void TrafficSignScene::run(SharedContext* ctx) {
             if (r >= 0) {
                 cached_fork_side_ = r;
                 vlm_state_ = VlmState::DECIDED;
+
+                // 计算耗时并通知显示
+                auto now = std::chrono::steady_clock::now();
+                auto latency_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    now - vlm_request_start_).count();
+                ctx->vlm_latency_ms.store(latency_ms, std::memory_order_release);
+                ctx->vlm_decision.store(r, std::memory_order_release);
+                ctx->vlm_state.store(2, std::memory_order_release); // DECIDED
+
                 std::cout << "[TrafficSignScene] VLM 决策完成: "
-                          << (cached_fork_side_ == 0 ? "直走" : "右转") << std::endl;
+                          << (cached_fork_side_ == 0 ? "直走" : "右转")
+                          << " (耗时 " << latency_ms << "ms)" << std::endl;
             }
         }
         break;

@@ -12,6 +12,8 @@ void PersonScene::run(SharedContext* ctx) {
     if (!seg || seg->mask.empty()) return;
 
     const auto& sp = ctx->config.control.scene.at("PersonScene");
+    float crop_y = ctx->config.frame_crop.enable
+        ? static_cast<float>(ctx->config.frame_crop.y) : 0.0f;
     cv::Point2f foot_img;
     bool person_detected = findPersonFoot(foot_img, ctx);
     bool hidden_car_person_risk =
@@ -49,7 +51,7 @@ void PersonScene::run(SharedContext* ctx) {
     }
 
     lost_frames_ = 0;
-    cv::Point2f foot_bird = ctx->perspective.toBird(foot_img);
+    cv::Point2f foot_bird = ctx->perspective.toBird({foot_img.x, foot_img.y - crop_y});
     updatePersonTracker(foot_bird);
 
     // ---- 车人组合：右侧车近距离消失后先停死，只等人往右让出左偏走廊 ----
@@ -306,13 +308,15 @@ bool PersonScene::findRightSideCar(float& dist_m, SharedContext* ctx) {
     const auto& car_sp = ctx->config.control.scene.at("CarScene");
     float mid_x = ctx->perspective.birdW() * car_sp.car_mid_ratio;
     float car_y = calib.bird_height * ctrl.car_cy_ratio;
+    float crop_y = ctx->config.frame_crop.enable
+        ? static_cast<float>(ctx->config.frame_crop.y) : 0.0f;
     bool found = false;
     float best_dist = 1e9f;
 
     for (const auto& b : det->boxes) {
         if (b.class_id != car_class_id_ || b.confidence < 0.4f) continue;
-        cv::Point2f bl = ctx->perspective.toBird({b.x1, b.y2});
-        cv::Point2f br = ctx->perspective.toBird({b.x2, b.y2});
+        cv::Point2f bl = ctx->perspective.toBird({b.x1, b.y2 - crop_y});
+        cv::Point2f br = ctx->perspective.toBird({b.x2, b.y2 - crop_y});
         float car_cx = (bl.x + br.x) * 0.5f;
         if (car_cx < mid_x) continue;
 

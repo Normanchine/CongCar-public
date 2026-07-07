@@ -17,8 +17,7 @@ compile_commands.json
 *.rknn
 *.pth
 
-# 配置文件（含密钥，不入库）
-Car/config/default.json
+# 配置文件已入库
 
 # 临时/草稿文件
 Car/TODO.md

@@ -34,13 +34,22 @@ const cv::Scalar kHudBg(30, 30, 30);
 const cv::Scalar kHudText(220, 220, 220);
 
 // ---- 绘制分割叠加 ----
-void drawSegmentation(cv::Mat& frame, const SegResult& seg) {
-    cv::Mat mask = seg.mask;
-    if (mask.size() != frame.size()) {
-        cv::resize(mask, mask, frame.size(), 0, 0, cv::INTER_NEAREST);
-    }
+void drawSegmentation(cv::Mat& frame, const SegResult& seg,
+                      const FrameCropConfig& crop_cfg) {
+    if (seg.mask.empty()) return;
+
+    // mask 覆盖区域 = 裁剪区域（全图坐标下）
+    int crop_w = crop_cfg.enable ? crop_cfg.w : frame.cols;
+    int crop_h = crop_cfg.enable ? crop_cfg.h : frame.rows;
+    int crop_x = crop_cfg.enable ? crop_cfg.x : 0;
+    int crop_y = crop_cfg.enable ? crop_cfg.y : 0;
+
+    cv::Mat mask_resized;
+    cv::resize(seg.mask, mask_resized, cv::Size(crop_w, crop_h), 0, 0, cv::INTER_NEAREST);
+
     cv::Mat overlay = cv::Mat::zeros(frame.size(), CV_8UC3);
-    overlay.setTo(kTrackColor, mask);
+    cv::Mat roi = overlay(cv::Rect(crop_x, crop_y, crop_w, crop_h));
+    roi.setTo(kTrackColor, mask_resized);
     cv::addWeighted(frame, 1.0 - kSegAlpha, overlay, kSegAlpha, 0, frame);
 }
 
@@ -106,9 +115,12 @@ void drawHUD(cv::Mat& frame, SharedContext* ctx) {
     const auto& name = ctx->scene_manager.currentName();
     float pwm = ctx->steering_pwm.load(std::memory_order_acquire);
     float spd = ctx->target_speed.load(std::memory_order_acquire);
+    int   vlm_st  = ctx->vlm_state.load(std::memory_order_acquire);
+    int   vlm_dec = ctx->vlm_decision.load(std::memory_order_acquire);
+    auto  vlm_ms  = ctx->vlm_latency_ms.load(std::memory_order_acquire);
 
     // 半透明背景
-    cv::Rect roi(x - 8, 4, 260, 88);
+    cv::Rect roi(x - 8, 4, 280, 112);
     if (roi.x + roi.width <= frame.cols && roi.y + roi.height <= frame.rows) {
         cv::Mat bg = frame(roi);
         cv::Mat dark(roi.height, roi.width, CV_8UC3, kHudBg);
@@ -129,6 +141,20 @@ void drawHUD(cv::Mat& frame, SharedContext* ctx) {
     oss.str("");
     oss << std::setprecision(1) << "Seg: " << seg_fps
         << " fps  Det: " << det_fps << " fps";
+    cv::putText(frame, oss.str(),
+                cv::Point(x, y), cv::FONT_HERSHEY_SIMPLEX, 0.45, kHudText, 1);
+    y += h;
+
+    // VLM 状态行
+    oss.str("");
+    if (vlm_st == 0) {
+        oss << "VLM: idle";
+    } else if (vlm_st == 1) {
+        oss << "VLM: requesting...";
+    } else if (vlm_st == 2) {
+        oss << "VLM: " << (vlm_dec == 0 ? "straight" : "right")
+            << " (" << vlm_ms << "ms)";
+    }
     cv::putText(frame, oss.str(),
                 cv::Point(x, y), cv::FONT_HERSHEY_SIMPLEX, 0.45, kHudText, 1);
 }
@@ -166,7 +192,7 @@ void DisplayTask::run() {
 
             auto seg = ctx_->seg_result.get();
             if (seg && !seg->mask.empty()) {
-                drawSegmentation(display, *seg);
+                drawSegmentation(display, *seg, ctx_->config.frame_crop);
             }
 
             auto det = ctx_->det_result.get();

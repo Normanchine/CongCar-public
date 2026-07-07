@@ -90,10 +90,25 @@ void CaptureTask::run() {
         last_fid = fid;
 
         // ---- 4. 垂直翻转（Python 端做了 flip(0)，这里还原） ----
-        cv::flip(frame, frame, 0);
+        //cv::flip(frame, frame, 0);
         // 注：frame保持RGB格式（共享内存原始格式），模型直接用，显示时再转BGR
 
-        // ---- 5. 帧裁剪（flip之后、预处理之前） ----
+        // ---- 5. 记录全图尺寸（供DetTask坐标映射，检测走全图不做裁剪） ----
+        ctx_->full_frame_width.store(static_cast<int>(w), std::memory_order_release);
+        ctx_->full_frame_height.store(static_cast<int>(h), std::memory_order_release);
+
+        // ---- 6. 检测帧：全图 resize 入队（检测需要看到完整画面） ----
+        cv::Mat det_input;
+        cv::resize(frame, det_input, cv::Size(det_w, det_h));
+        ctx_->detection_queue.produce(det_input);
+
+        // ---- 7. 显示帧 + 工作帧：全图（crop 之前） ----
+        ctx_->work_frame_queue.produce(frame.clone());  // TrafficSignScene 用全图裁剪标志
+        if (ctx_->config.debug_mode) {
+            ctx_->display_queue.produce(frame.clone()); // 显示全图
+        }
+
+        // ---- 8. 帧裁剪（仅影响分割和巡线） ----
         if (ctx_->config.frame_crop.enable) {
             cv::Rect crop(ctx_->config.frame_crop.x, ctx_->config.frame_crop.y,
                           ctx_->config.frame_crop.w, ctx_->config.frame_crop.h);
@@ -102,26 +117,16 @@ void CaptureTask::run() {
             h = static_cast<uint32_t>(ctx_->config.frame_crop.h);
         }
 
-        // ---- 6. 记录工作帧尺寸（供SegTask/DetTask坐标映射和鸟瞰Mask还原） ----
+        // ---- 9. 记录工作帧尺寸（供SegTask坐标映射和鸟瞰Mask还原） ----
         ctx_->frame_width.store(static_cast<int>(w), std::memory_order_release);
         ctx_->frame_height.store(static_cast<int>(h), std::memory_order_release);
 
-        // ---- 7. 预处理（RGB直传 + resize到模型输入尺寸） ----
-        cv::Mat det_input;
-        cv::resize(frame, det_input, cv::Size(det_w, det_h));
-
+        // ---- 10. 分割帧：裁剪后 resize 入队 ----
         cv::Mat seg_input;
         cv::resize(frame, seg_input, cv::Size(seg_w, seg_h));
-
-        // ---- 8. 入队 ----
         ctx_->segmentation_queue.produce(seg_input);
-        ctx_->detection_queue.produce(det_input);
-        ctx_->work_frame_queue.produce(frame);          // 工作帧（场景裁剪用）
-        if (ctx_->config.debug_mode) {
-            ctx_->display_queue.produce(frame);         // 工作帧（显示线程绘制用）
-        }
 
-        // ---- 9. 记录本帧耗时 ----
+        // ---- 11. 记录本帧耗时 ----
         auto t_end = std::chrono::steady_clock::now();
         auto elapsed_us = std::chrono::duration_cast<std::chrono::microseconds>(
             t_end - t_start).count();

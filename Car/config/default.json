@@ -1,0 +1,128 @@
+{
+  "debug_mode": true,
+  "shm_name": "shm_ar_video",
+  "shm_size": 10485760,
+
+  "control": {
+    "car_length": 0.193,
+    "car_cy_ratio": 0.95,
+    "aim_dist_near": 0.15,
+    "pwm_mid": 1560.0,
+    "pwm_min": 500.0,
+    "pwm_max": 2500.0,
+    "pwm_k": 600.0,
+    "steering_invert": false,
+    "steer_speed_threshold": 0.15,
+    "steer_speed_k": 1.5,
+    "lookahead_speed_k": 0.15,
+    "max_lost_frames": 30,
+    "coast_steer_step": 200.0,
+    "coast_speed_decay": 0.9,
+    "speed_recovery_k": 0.01,
+    "fork": {
+      "keep_side": 0,
+      "confirm_rows": 3,
+      "persist_frames": 30,
+      "width_threshold": 1.0
+    },
+    "scene": {
+      "NormalScene": {
+        "max_speed": 1.5,
+        "pid_p": 0.95,
+        "pid_d": 1.4
+      },
+      "CarScene": {
+        "max_speed": 0.5,
+        "pid_p": 0.7,
+        "pid_d": 0.6,
+        "car_cut_ratio": 0.45,
+        "car_mid_ratio": 0.5,
+        "car_center_x_offset_ratio": 0.12
+      },
+      "PersonScene": {
+        "max_speed": 0.5,
+        "pid_p": 0.7,
+        "pid_d": 0.6,
+        "person_stop_dist_m": 0.75,
+        "person_stop_width_m": 0.32,
+        "person_cross_threshold": 1,
+        "person_safe_width_m": 0.22,
+        "person_move_px": 4.0,
+        "person_launch_lead_frames": 6,
+        "person_lost_release_frames": 6,
+        "person_release_hold_frames": 20,
+        "person_avoid_offset_ratio": 0.08,
+        "person_disable_right_avoid_when_car": true,
+        "person_car_side_stop_dist_m": 0.45,
+        "person_car_watch_frames": 30,
+        "person_car_launch_lead_frames": 8,
+        "person_car_left_avoid_offset_ratio": 0.10
+      },
+      "TrafficSignScene": {
+        "max_speed": 0.7,
+        "pid_p": 0.7,
+        "pid_d": 0.6,
+        "fork_speed": 0.3
+      }
+    }
+  },
+
+  "ai": {
+    "segmentation": {
+      "model_path": "/home/orangepi/Desktop/new/model/pplite_seg_512x192_int8.rknn",
+      "input_w": 512,
+      "input_h": 192
+    },
+    "detection": {
+      "model_path": "/home/orangepi/Desktop/new/model/ppyoloe_head_320x256_rk3588_int8.rknn",
+      "input_w": 320,
+      "input_h": 256,
+      "confidence_threshold": 0.40,
+      "nms_threshold": 0.65,
+      "lost_frame_limit": 40,
+      "class_num": 3,
+      "classes": ["sign","person","car"],
+      "colors": [[40,220,40],[40,80,255],[255,210,40]],
+      "scene_map": {"sign": "TrafficSignScene", "person": "PersonScene", "car": "CarScene"}
+    },
+    "vlm": {
+      "api_key": "",
+      "base_url": "https://qianfan.baidubce.com/v2",
+      "model": "ernie-4.5-turbo-vl-32k",
+      "deadline_seconds": 4.0,
+      "max_upload_width": 250,
+      "max_upload_height": 96,
+      "box_padding_ratio": 0.06,
+      "stable_frames": 3
+    }
+  },
+
+  "calib": {
+    "src_quad": [322.0, 96.0, 390.0, 97.0, 439.0, 177.0, 243.0, 171.0],
+    "bird_width": 240,
+    "bird_height": 480,
+    "bird_width_scale": 4.0,
+    "ppm_x": 600.0,
+    "ppm_y": 600.0
+  },
+
+  "uart": {
+    "port": "/dev/ttyUSB0",
+    "baud": 115200,
+    "pwm_neutral": 1500.0
+  },
+
+  "frame_crop": {
+    "enable": true,
+    "x": 0,
+    "y": 240,
+    "w": 640,
+    "h": 240
+  },
+
+  "http_stream": {
+    "port": 5001,
+    "jpeg_quality": 80,
+    "enable": true
+  }
+}

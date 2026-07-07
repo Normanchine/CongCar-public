@@ -93,8 +93,17 @@ struct SharedContext {
     std::atomic<int> frame_width{0};
     std::atomic<int> frame_height{0};
 
+    // ---- 全图尺寸（CaptureTask 写入，检测走全图时供 DetTask 坐标映射） ----
+    std::atomic<int> full_frame_width{0};
+    std::atomic<int> full_frame_height{0};
+
     // ---- 车人组合风险：右侧车近距离消失后，PersonScene 进入隐藏行人等待 ----
     std::atomic<int> right_car_hidden_risk_frames{0};
+
+    // ---- VLM 状态（TrafficSignScene 写，DisplayTask 读） ----
+    std::atomic<int>     vlm_state{0};        // 0=IDLE, 1=REQUESTING, 2=DECIDED
+    std::atomic<int>     vlm_decision{-1};     // -1=未决策, 0=直走, 1=右转
+    std::atomic<int64_t> vlm_latency_ms{0};   // 最近一次 VLM 请求耗时(ms)
 
     // ---- 分割→控制 唤醒机制 ----
     std::mutex              seg_cv_mtx_;

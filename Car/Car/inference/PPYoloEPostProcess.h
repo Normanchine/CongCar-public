@@ -1,7 +1,7 @@
 #pragma once
 // PP-YOLOE 后处理：anchor解码 + 坐标变换 + NMS
 // 纯算法，对应 infer_rk3588.py 的 postprocess 逻辑
-// 输入: 256×640, 中心裁剪一半高度
+// 输入: 256×320, 全图无裁剪
 
 #include <algorithm>
 #include <vector>
@@ -11,11 +11,11 @@ namespace ppyoloe {
 // ---- 模型参数（与 onnx_io.json 一致） ----
 
 constexpr int INPUT_H = 256;
-constexpr int INPUT_W = 640;
+constexpr int INPUT_W = 320;
 constexpr int FPN_STRIDES[] = {32, 16, 8};
 constexpr float GRID_OFFSET = 0.5f;
-constexpr int NUM_CLASSES = 7;
-constexpr int NUM_ANCHORS = 3360; // 8×20 + 16×40 + 32×80
+constexpr int NUM_CLASSES = 3;
+constexpr int NUM_ANCHORS = 1680; // 10×8 + 20×16 + 40×32
 
 // ---- 检测结果 ----
 
@@ -53,8 +53,8 @@ inline void getAnchors(const float*& out_points, const float*& out_strides) {
 }
 
 // ---- 主后处理 ----
-// cls_data:  (12, 3360) float32, 已 sigmoid, row-major
-// reg_data:  (3360, 4)  float32, ltrb 距离（grid cell 单位）, row-major
+// cls_data:  (3, 1680) float32, 已 sigmoid, row-major
+// reg_data:  (1680, 4)  float32, ltrb 距离（grid cell 单位）, row-major
 // orig_w, orig_h: 原始图片宽高
 // crop_h:        中心裁剪后高度（= orig_h / 2）
 // crop_top:      裁剪起始 Y 坐标（= (orig_h - crop_h) / 2）

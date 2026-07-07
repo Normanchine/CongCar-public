@@ -80,10 +80,10 @@ struct DetectionConfig {
     std::string model_path =
         "/home/orangepi/Desktop/setupUI-1.0.6_app-1.0.6/setupUI/"
         "infer_wrap/base/model/rknn_lt.rknn";
-    int input_w = 640;
-    int input_h = 640;
-    float confidence_threshold = 0.5f;
-    float nms_threshold        = 0.45f;
+    int input_w = 320;
+    int input_h = 256;
+    float confidence_threshold = 0.40f;
+    float nms_threshold        = 0.65f;
     int   lost_frame_limit     = 5;    // 特殊场景切回NormalScene的缓冲帧数
 
     // 类别配置

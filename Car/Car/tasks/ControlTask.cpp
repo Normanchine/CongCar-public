@@ -61,7 +61,7 @@ void ControlTask::run() {
         // 3c. 急停/启动切换
         if (uart.consumeKeypress()) {
             running = !running;
-            std::cout << (running ? "[ControlTask] 恢复运行\n" : "[ControlTask] 急停\n");
+            //std::cout << (running ? "[ControlTask] 恢复运行\n" : "[ControlTask] 急停\n");
         }
 
         // 3d. 下发控制信息
@@ -69,7 +69,7 @@ void ControlTask::run() {
             float speed = ctx_->target_speed.load(std::memory_order_acquire);
             float pwm   = ctx_->steering_pwm.load(std::memory_order_acquire);
             uart.sendControl(speed, static_cast<uint16_t>(pwm));
-            std::cout << "[ControlTask] 发送控制信息: " << speed << " " << pwm << std::endl;
+            //std::cout << "[ControlTask] 发送控制信息: " << speed << " " << pwm << std::endl;
         } else {
             uart.sendControl(0.0f, static_cast<uint16_t>(uc.pwm_neutral));
         }

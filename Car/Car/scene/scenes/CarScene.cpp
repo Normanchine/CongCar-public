@@ -19,13 +19,15 @@ void CarScene::run(SharedContext* ctx) {
 
     // 检测车，判断在赛道哪侧 → 设置cut_side
     follower_.cut_side = -1;  // 默认无车
+    float crop_y = ctx->config.frame_crop.enable
+        ? static_cast<float>(ctx->config.frame_crop.y) : 0.0f;
     auto det = ctx->det_result.get();
     if (det && car_class_id_ >= 0) {
         for (const auto& b : det->boxes) {
             if (b.class_id == car_class_id_ && b.confidence > 0.4f) {
                 // 只投影车框底边两点（触地点在地面上，投影准确）
-                cv::Point2f bl = ctx->perspective.toBird({b.x1, b.y2});  // 底左
-                cv::Point2f br = ctx->perspective.toBird({b.x2, b.y2});  // 底右
+                cv::Point2f bl = ctx->perspective.toBird({b.x1, b.y2 - crop_y});  // 底左
+                cv::Point2f br = ctx->perspective.toBird({b.x2, b.y2 - crop_y});  // 底右
                 float car_cx = (bl.x + br.x) * 0.5f;
 
                 // 车中心 vs 配置的中线比例 → 车在左半还是右半
