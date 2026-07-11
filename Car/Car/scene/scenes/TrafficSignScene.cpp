@@ -66,6 +66,14 @@ size_t curlWriteCallback(void* contents, size_t size, size_t nmemb, void* userp)
 
 } // anonymous namespace
 
+// ---- 重写 onFork：用 fork_side 控制保留侧，不动全局 keep_side ----
+void TrafficSignScene::Follower::onFork(cv::Mat& wide_mask, SharedContext* ctx) {
+    const auto& fk = ctx->config.control.fork;
+    pathplan::handleFork(wide_mask, fork_state_,
+                         fork_side, fk.confirm_rows,
+                         fk.persist_frames, fk.width_threshold, 1);
+}
+
 // ---- 重写 onPD：按 fork_side 选直走/右转两套 PID ----
 float TrafficSignScene::Follower::onPD(float error, SharedContext* ctx) {
     const auto& ctrl = ctx->config.control;
@@ -490,7 +498,6 @@ void TrafficSignScene::run(SharedContext* ctx) {
 
         // 阶段1：纯巡线，和 NormalScene 完全一样
         follower_.fork_side = 0;
-        ctx->config.control.fork.keep_side = 0;
         follower_.process(seg->mask, ctx);
         break;
     }
@@ -527,7 +534,6 @@ void TrafficSignScene::run(SharedContext* ctx) {
     // ================================================================
     case VlmState::DRIVE: {
         follower_.fork_side = cached_fork_side_;
-        ctx->config.control.fork.keep_side = cached_fork_side_;
 
         // 右转：临时扩大 bird_width，让裁剪窗口覆盖整个宽鸟瞰图，
         //       确保右侧岔路在中线提取时可见

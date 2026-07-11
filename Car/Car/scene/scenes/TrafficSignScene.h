@@ -35,11 +35,12 @@ private:
     // 清理 VLM 输出文本
     static std::string cleanOutput(const std::string& text);
 
-    // 重写 onPD/onSpeed：按 fork_side 选直走/右转两套参数，其余与 PathFollower 一致
+    // 重写 onFork/onPD/onSpeed：按 fork_side 选岔路方向 + 直走/右转两套参数
     class Follower : public PathFollower {
     public:
         int fork_side = 0;  // 0=直走, 1=右转
     protected:
+        void  onFork(cv::Mat& wide_mask, SharedContext* ctx) override;
         float onPD(float error, SharedContext* ctx) override;
         float onSpeed(float error, SharedContext* ctx) override;
     };
