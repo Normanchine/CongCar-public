@@ -90,7 +90,7 @@ void CaptureTask::run() {
         last_fid = fid;
 
         // ---- 4. 垂直翻转（Python 端做了 flip(0)，这里还原） ----
-        //cv::flip(frame, frame, 0);
+        cv::flip(frame, frame, 0);
         // 注：frame保持RGB格式（共享内存原始格式），模型直接用，显示时再转BGR
 
         // ---- 5. 记录全图尺寸（供DetTask坐标映射，检测走全图不做裁剪） ----
