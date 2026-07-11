@@ -304,6 +304,11 @@ int TrafficSignScene::callVlmApi(const std::vector<uint8_t>& jpeg_bytes,
 
     // 5. 清理 + 匹配动作
     std::string cleaned = cleanOutput(raw_output);
+
+    // 始终打印 VLM 原始输出，方便排查识别错误
+    std::cout << "[TrafficSignScene] VLM 原始输出: \"" << raw_output
+              << "\" → 清洗后: \"" << cleaned << "\"" << std::endl;
+
     int action = parseAction(cleaned);
     if (action < 0) {
         action = parseEarlyAction(cleaned);
@@ -407,7 +412,13 @@ void TrafficSignScene::run(SharedContext* ctx) {
                         std::thread([&]() {
                             try {
                                 p.set_value(callVlmApi(jpeg, cfg));
+                            } catch (const std::exception& e) {
+                                std::cerr << "[TrafficSignScene] VLM API 异常: "
+                                          << e.what() << "，兜底直走" << std::endl;
+                                try { p.set_value(0); } catch (...) {}
                             } catch (...) {
+                                std::cerr << "[TrafficSignScene] VLM API 未知异常，兜底直走"
+                                          << std::endl;
                                 try { p.set_value(0); } catch (...) {}
                             }
                         }).detach();

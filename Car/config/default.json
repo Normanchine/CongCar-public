@@ -86,7 +86,7 @@
       "scene_map": {"sign": "TrafficSignScene", "person": "PersonScene", "car": "CarScene"}
     },
     "vlm": {
-      "api_key": "",
+      "api_key": "***REMOVED***",
       "base_url": "https://qianfan.baidubce.com/v2",
       "model": "ernie-4.5-turbo-vl-32k",
       "deadline_seconds": 4.0,
