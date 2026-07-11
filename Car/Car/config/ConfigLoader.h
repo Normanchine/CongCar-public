@@ -7,6 +7,22 @@
 
 using json = nlohmann::json;
 
+// ---- TurnControlParams 序列化 ----
+
+inline void to_json(json& j, const TurnControlParams& t) {
+    j = json{
+        {"max_speed", t.max_speed},
+        {"pid_p",     t.pid_p},
+        {"pid_d",     t.pid_d},
+    };
+}
+
+inline void from_json(const json& j, TurnControlParams& t) {
+    if (j.contains("max_speed")) j.at("max_speed").get_to(t.max_speed);
+    if (j.contains("pid_p"))     j.at("pid_p").get_to(t.pid_p);
+    if (j.contains("pid_d"))     j.at("pid_d").get_to(t.pid_d);
+}
+
 // ---- SceneControlParams 序列化 ----
 
 inline void to_json(json& j, const SceneControlParams& s) {
@@ -14,7 +30,6 @@ inline void to_json(json& j, const SceneControlParams& s) {
         {"max_speed", s.max_speed},
         {"pid_p", s.pid_p},
         {"pid_d", s.pid_d},
-        {"fork_speed", s.fork_speed},
         {"car_cut_ratio", s.car_cut_ratio},
         {"car_mid_ratio", s.car_mid_ratio},
         {"car_center_x_offset_ratio", s.car_center_x_offset_ratio},
@@ -31,7 +46,8 @@ inline void to_json(json& j, const SceneControlParams& s) {
         {"person_car_side_stop_dist_m", s.person_car_side_stop_dist_m},
         {"person_car_watch_frames", s.person_car_watch_frames},
         {"person_car_launch_lead_frames", s.person_car_launch_lead_frames},
-        {"person_car_left_avoid_offset_ratio", s.person_car_left_avoid_offset_ratio}
+        {"person_car_left_avoid_offset_ratio", s.person_car_left_avoid_offset_ratio},
+        {"right", s.right},
     };
 }
 
@@ -39,7 +55,6 @@ inline void from_json(const json& j, SceneControlParams& s) {
     j.at("max_speed").get_to(s.max_speed);
     j.at("pid_p").get_to(s.pid_p);
     j.at("pid_d").get_to(s.pid_d);
-    if (j.contains("fork_speed"))          j.at("fork_speed").get_to(s.fork_speed);
     if (j.contains("car_cut_ratio"))        j.at("car_cut_ratio").get_to(s.car_cut_ratio);
     if (j.contains("car_mid_ratio"))        j.at("car_mid_ratio").get_to(s.car_mid_ratio);
     if (j.contains("car_center_x_offset_ratio"))
@@ -61,6 +76,7 @@ inline void from_json(const json& j, SceneControlParams& s) {
         j.at("person_car_launch_lead_frames").get_to(s.person_car_launch_lead_frames);
     if (j.contains("person_car_left_avoid_offset_ratio"))
         j.at("person_car_left_avoid_offset_ratio").get_to(s.person_car_left_avoid_offset_ratio);
+    if (j.contains("right")) j.at("right").get_to(s.right);
 }
 
 // ---- ForkConfig 序列化 ----
@@ -183,6 +199,7 @@ inline void to_json(json& j, const VlmConfig& v) {
         {"max_upload_height", v.max_upload_height},
         {"box_padding_ratio", v.box_padding_ratio},
         {"stable_frames",     v.stable_frames},
+        {"delay_frames",      v.delay_frames},
     };
 }
 
@@ -195,6 +212,7 @@ inline void from_json(const json& j, VlmConfig& v) {
     if (j.contains("max_upload_height")) j.at("max_upload_height").get_to(v.max_upload_height);
     if (j.contains("box_padding_ratio")) j.at("box_padding_ratio").get_to(v.box_padding_ratio);
     if (j.contains("stable_frames"))     j.at("stable_frames").get_to(v.stable_frames);
+    if (j.contains("delay_frames"))      j.at("delay_frames").get_to(v.delay_frames);
 }
 
 // ---- AIConfig 序列化（嵌套 segmentation + detection + vlm） ----

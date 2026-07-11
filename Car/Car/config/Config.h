@@ -3,11 +3,20 @@
 #include <string>
 #include <map>
 
+// TrafficSignScene 右转子配置（嵌套在 SceneControlParams::right）
+struct TurnControlParams {
+    float max_speed = 0.55f;
+    float pid_p     = 0.9f;
+    float pid_d     = 0.7f;
+};
+
 struct SceneControlParams {
     float max_speed = 1.0f;
     float pid_p     = 0.0f;
     float pid_d     = 0.0f;
-    float fork_speed = 0.3f;   // 岔路口锁舵期间的恒定速度
+
+    // TrafficSignScene 右转专属参数
+    TurnControlParams right;
 
     // Car 场景专属参数（仅 CarScene 使用）
     float car_cut_ratio  = 0.5f;           // 车侧切除比例（0~1，0.5=切一半宽度）
@@ -102,6 +111,7 @@ struct VlmConfig {
     int         max_upload_height = 96;
     float       box_padding_ratio = 0.06f;
     int         stable_frames     = 3;
+    int         delay_frames      = 0;    // 稳定后延迟帧数（等车靠近标志）
 };
 
 struct AIConfig {

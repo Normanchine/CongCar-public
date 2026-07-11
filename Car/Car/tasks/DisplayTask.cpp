@@ -209,7 +209,12 @@ void DisplayTask::run() {
                 std::lock_guard<std::mutex> lock(ctx_->bird_mtx_);
                 if (ctx_->bird_valid_ && !ctx_->bird_mask_.empty()) {
                     bird_color.setTo(kBirdBg);
-                    bird_color.setTo(kBirdTrack, ctx_->bird_mask_);
+                    cv::Mat mask_disp = ctx_->bird_mask_;
+                    if (mask_disp.cols != bird_w) {
+                        cv::resize(mask_disp, mask_disp, cv::Size(bird_w, bird_h),
+                                   0, 0, cv::INTER_NEAREST);
+                    }
+                    bird_color.setTo(kBirdTrack, mask_disp);
                     float center_offset_ratio = 0.0f;
                     const auto& scene_name = ctx_->scene_manager.currentName();
                     auto it = ctx_->config.control.scene.find(scene_name);
