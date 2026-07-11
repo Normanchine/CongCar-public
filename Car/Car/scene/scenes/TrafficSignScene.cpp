@@ -221,19 +221,39 @@ int TrafficSignScene::callVlmApi(const std::vector<uint8_t>& jpeg_bytes,
     std::string b64 = base64::encode(jpeg_bytes);
     std::string image_url = "data:image/jpeg;base64," + b64;
 
-    // 2. 构造请求体（stream=true，与 Python 一致）
+    // 2. 构造请求体（stream=true，与 Python 一致）。
+    // 注意：nlohmann::json 的 {"key", value, "key", value} 会被序列化为数组，
+    // 不能省略每个键值对外层的 {}。此前 messages 实际发送成了二维数组，
+    // 因而被千帆拒绝为 malformed_json。
+    json user_content = json::array({
+        {
+            {"type", "image_url"},
+            {"image_url", {
+                {"url", image_url},
+                {"detail", "low"},
+            }},
+        },
+        {
+            {"type", "text"},
+            {"text", "只输出最终动作。注意先读完整句：近道、捷径、更短路线类表达通常指右转，但被否定或被\"才怪\"等推翻时不能按右转处理。"},
+        },
+    });
+    json messages = json::array({
+        {
+            {"role", "system"},
+            {"content", kVlmSystemPrompt},
+        },
+        {
+            {"role", "user"},
+            {"content", std::move(user_content)},
+        },
+    });
     json request_body = {
         {"model",       cfg.model},
         {"temperature", 0},
         {"max_tokens",  4},
         {"stream",      true},
-        {"messages", json::array({
-            {{"role", "system", "content", kVlmSystemPrompt}},
-            {{"role", "user",   "content", json::array({
-                {{"type", "image_url", "image_url", {{"url", image_url}, {"detail", "low"}}}},
-                {{"type", "text",       "text", "只输出最终动作。注意先读完整句：近道、捷径、更短路线类表达通常指右转，但被否定或被\"才怪\"等推翻时不能按右转处理。"}}
-            })}}
-        })}
+        {"messages",    std::move(messages)},
     };
     std::string body_str = request_body.dump();
 
