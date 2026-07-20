@@ -43,8 +43,9 @@ void CarScene::run(SharedContext* ctx) {
                 // 框底边两点 → 鸟瞰坐标
                 cv::Point2f bl = ctx->perspective.toBird({best->x1, best->y2 - crop_y});
                 cv::Point2f br = ctx->perspective.toBird({best->x2, best->y2 - crop_y});
-                float car_cx = (bl.x + br.x) * 0.5f;
-                float car_width = br.x - bl.x;
+                float car_left  = std::min(bl.x, br.x);
+                float car_right = std::max(bl.x, br.x);
+                float car_width = car_right - car_left;
                 float car_bird_y = (bl.y + br.y) * 0.5f;
 
                 // 纵向距离判断：够近才触发，一旦触发锁住
@@ -53,8 +54,11 @@ void CarScene::run(SharedContext* ctx) {
                 float cur_spd = ctx->target_speed.load(std::memory_order_acquire);
                 float trigger = sp.car_trigger_dist_m + cur_spd * sp.car_trigger_speed_k;
                 if (dist_m > 0 && dist_m < trigger) {
+                    // 车宽大部分在哪侧就切哪侧（车横跨中线时不会误判）
                     float mid_x = ctx->perspective.birdW() * 0.5f;
-                    follower_.cut_side = (car_cx < mid_x) ? 0 : 1;
+                    float left_overlap  = std::max(0.0f, mid_x - car_left);
+                    float right_overlap = std::max(0.0f, car_right - mid_x);
+                    follower_.cut_side = (right_overlap > left_overlap) ? 1 : 0;
                     follower_.cut_width_px = static_cast<int>(car_width) + margin;
                     cutting_active_ = true;  // 锁住，后续帧不再判断
                 }
