@@ -16,8 +16,6 @@ add_executable(car
     thread/Car.cpp
     scene/scenes/NormalScene.cpp
     scene/planning/PathFollower.cpp
-    scene/scenes/CarScene.cpp
-    scene/scenes/PersonScene.cpp
     scene/scenes/TrafficSignScene.cpp
     hal/memory/shared_memory_manager.cpp
     hal/uart/UartIO.cpp

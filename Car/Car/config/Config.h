@@ -18,26 +18,6 @@ struct SceneControlParams {
     // TrafficSignScene 右转专属参数
     TurnControlParams right;
 
-    // Car 场景专属参数（仅 CarScene 使用）
-    float car_cut_ratio  = 0.5f;           // 车侧切除比例（0~1，0.5=切一半宽度）
-    float car_mid_ratio  = 0.67f;          // 车侧判断中线比例（0~1，0.67=鸟瞰2/3处为分界）
-    float car_center_x_offset_ratio = 0.0f; // CarScene车体参考中心右移比例（相对鸟瞰宽度，右正左负）
-
-    // Person 场景专属参数（仅 PersonScene 使用）
-    float person_stop_dist_m = 0.75f;       // 人脚底到车底中心小于该距离时停车（m，鸟瞰纵向）
-    float person_stop_width_m = 0.32f;      // 停车触发走廊半宽（m），比释放走廊更宽更保守
-    int   person_cross_threshold = 1;       // 释放预测连续满足帧数（1=最快发车）
-    float person_safe_width_m = 0.22f;       // 释放判断走廊半宽（m），人离开该走廊才可发车
-    float person_move_px = 4.0f;             // 判定人横向移动的最小鸟瞰像素/帧
-    int   person_launch_lead_frames = 6;     // 预计多少帧内离开走廊时提前发车
-    int   person_lost_release_frames = 6;    // 停车等待中人连续丢失多少帧后恢复巡线
-    int   person_release_hold_frames = 20;   // 发车后忽略同一行人若干帧，避免反复停车
-    float person_avoid_offset_ratio = 0.08f; // 人向左离开时右偏、人向右离开时左偏（相对鸟瞰宽度）
-    bool  person_disable_right_avoid_when_car = true; // 右侧有车时禁止右偏绕人
-    float person_car_side_stop_dist_m = 0.45f; // 右侧车消失前进入该纵向距离内，触发车后藏人风险
-    int   person_car_watch_frames = 30;        // 右侧车近距离消失后的观察/风险帧数
-    int   person_car_launch_lead_frames = 8;   // 车人组合：人往右清出左偏走廊前多少帧发车
-    float person_car_left_avoid_offset_ratio = 0.10f; // 车人组合释放时固定左偏
 };
 
 struct ForkConfig {

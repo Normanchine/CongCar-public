@@ -30,23 +30,6 @@ inline void to_json(json& j, const SceneControlParams& s) {
         {"max_speed", s.max_speed},
         {"pid_p", s.pid_p},
         {"pid_d", s.pid_d},
-        {"car_cut_ratio", s.car_cut_ratio},
-        {"car_mid_ratio", s.car_mid_ratio},
-        {"car_center_x_offset_ratio", s.car_center_x_offset_ratio},
-        {"person_stop_dist_m", s.person_stop_dist_m},
-        {"person_stop_width_m", s.person_stop_width_m},
-        {"person_cross_threshold", s.person_cross_threshold},
-        {"person_safe_width_m", s.person_safe_width_m},
-        {"person_move_px", s.person_move_px},
-        {"person_launch_lead_frames", s.person_launch_lead_frames},
-        {"person_lost_release_frames", s.person_lost_release_frames},
-        {"person_release_hold_frames", s.person_release_hold_frames},
-        {"person_avoid_offset_ratio", s.person_avoid_offset_ratio},
-        {"person_disable_right_avoid_when_car", s.person_disable_right_avoid_when_car},
-        {"person_car_side_stop_dist_m", s.person_car_side_stop_dist_m},
-        {"person_car_watch_frames", s.person_car_watch_frames},
-        {"person_car_launch_lead_frames", s.person_car_launch_lead_frames},
-        {"person_car_left_avoid_offset_ratio", s.person_car_left_avoid_offset_ratio},
         {"right", s.right},
     };
 }
@@ -55,27 +38,6 @@ inline void from_json(const json& j, SceneControlParams& s) {
     j.at("max_speed").get_to(s.max_speed);
     j.at("pid_p").get_to(s.pid_p);
     j.at("pid_d").get_to(s.pid_d);
-    if (j.contains("car_cut_ratio"))        j.at("car_cut_ratio").get_to(s.car_cut_ratio);
-    if (j.contains("car_mid_ratio"))        j.at("car_mid_ratio").get_to(s.car_mid_ratio);
-    if (j.contains("car_center_x_offset_ratio"))
-        j.at("car_center_x_offset_ratio").get_to(s.car_center_x_offset_ratio);
-    if (j.contains("person_stop_dist_m"))          j.at("person_stop_dist_m").get_to(s.person_stop_dist_m);
-    if (j.contains("person_stop_width_m"))         j.at("person_stop_width_m").get_to(s.person_stop_width_m);
-    if (j.contains("person_cross_threshold"))      j.at("person_cross_threshold").get_to(s.person_cross_threshold);
-    if (j.contains("person_safe_width_m"))         j.at("person_safe_width_m").get_to(s.person_safe_width_m);
-    if (j.contains("person_move_px"))              j.at("person_move_px").get_to(s.person_move_px);
-    if (j.contains("person_launch_lead_frames"))   j.at("person_launch_lead_frames").get_to(s.person_launch_lead_frames);
-    if (j.contains("person_lost_release_frames"))  j.at("person_lost_release_frames").get_to(s.person_lost_release_frames);
-    if (j.contains("person_release_hold_frames"))  j.at("person_release_hold_frames").get_to(s.person_release_hold_frames);
-    if (j.contains("person_avoid_offset_ratio"))   j.at("person_avoid_offset_ratio").get_to(s.person_avoid_offset_ratio);
-    if (j.contains("person_disable_right_avoid_when_car"))
-        j.at("person_disable_right_avoid_when_car").get_to(s.person_disable_right_avoid_when_car);
-    if (j.contains("person_car_side_stop_dist_m")) j.at("person_car_side_stop_dist_m").get_to(s.person_car_side_stop_dist_m);
-    if (j.contains("person_car_watch_frames"))     j.at("person_car_watch_frames").get_to(s.person_car_watch_frames);
-    if (j.contains("person_car_launch_lead_frames"))
-        j.at("person_car_launch_lead_frames").get_to(s.person_car_launch_lead_frames);
-    if (j.contains("person_car_left_avoid_offset_ratio"))
-        j.at("person_car_left_avoid_offset_ratio").get_to(s.person_car_left_avoid_offset_ratio);
     if (j.contains("right")) j.at("right").get_to(s.right);
 }
 

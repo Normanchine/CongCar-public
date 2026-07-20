@@ -215,15 +215,8 @@ void DisplayTask::run() {
                                    0, 0, cv::INTER_NEAREST);
                     }
                     bird_color.setTo(kBirdTrack, mask_disp);
-                    float center_offset_ratio = 0.0f;
-                    const auto& scene_name = ctx_->scene_manager.currentName();
-                    auto it = ctx_->config.control.scene.find(scene_name);
-                    if (scene_name == "CarScene" && it != ctx_->config.control.scene.end()) {
-                        center_offset_ratio = std::clamp(
-                            it->second.car_center_x_offset_ratio, -0.45f, 0.45f);
-                    }
                     drawBirdView(bird_color, ctx_->bird_centers_, ctx_->bird_aim_pt_,
-                                 ctx_->config.control.car_cy_ratio, center_offset_ratio);
+                                 ctx_->config.control.car_cy_ratio, 0.0f);
                 } else {
                     bird_color.setTo(kBirdBg);
                 }

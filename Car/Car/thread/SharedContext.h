@@ -97,8 +97,6 @@ struct SharedContext {
     std::atomic<int> full_frame_width{0};
     std::atomic<int> full_frame_height{0};
 
-    // ---- 车人组合风险：右侧车近距离消失后，PersonScene 进入隐藏行人等待 ----
-    std::atomic<int> right_car_hidden_risk_frames{0};
 
     // ---- VLM 状态（TrafficSignScene 写，DisplayTask 读） ----
     std::atomic<int>     vlm_state{0};        // 0=IDLE, 1=REQUESTING, 2=DECIDED
