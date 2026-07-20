@@ -15,6 +15,7 @@ add_executable(car
     main.cpp
     thread/Car.cpp
     scene/scenes/NormalScene.cpp
+    scene/scenes/CarScene.cpp
     scene/planning/PathFollower.cpp
     scene/scenes/TrafficSignScene.cpp
     hal/memory/shared_memory_manager.cpp

@@ -31,20 +31,9 @@ void ControlTask::run() {
 
     uart.startReceive();
     ctx_->uart_io = &uart;  // 场景可通过ctx直接发串口指令
-    std::cout << "[ControlTask] 等待按键启动..." << std::endl;
 
-    // ---- 2. 等待下位机按键信号 ----
+    // ---- 2. 主控制循环（按键只控制串口下发，不影响场景执行） ----
     bool running = false;
-    while (!ctx_->stop.load(std::memory_order_acquire)) {
-        if (uart.consumeKeypress()) {
-            running = true;
-            std::cout << "[ControlTask] 按键启动" << std::endl;
-            break;
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    }
-
-    // ---- 3. 主控制循环 ----
     while (!ctx_->stop.load(std::memory_order_acquire)) {
         // 3a. 等待新分割结果（阻塞），超时 50ms 兜底
         {
@@ -55,21 +44,20 @@ void ControlTask::run() {
 
         auto t_start = std::chrono::steady_clock::now();
 
-        // 3b. 执行当前场景
+        // 2b. 执行当前场景（不管按键状态，场景始终运行）
         ctx_->scene_manager.run(ctx_);
 
-        // 3c. 急停/启动切换
+        // 2c. 按键切换：只控制是否下发串口指令
         if (uart.consumeKeypress()) {
             running = !running;
-            //std::cout << (running ? "[ControlTask] 恢复运行\n" : "[ControlTask] 急停\n");
+            std::cout << "[ControlTask] 通信: " << (running ? "开启" : "关闭") << std::endl;
         }
 
-        // 3d. 下发控制信息
+        // 2d. 下发控制（running=false 时发空指令，车不动）
         if (running) {
             float speed = ctx_->target_speed.load(std::memory_order_acquire);
             float pwm   = ctx_->steering_pwm.load(std::memory_order_acquire);
             uart.sendControl(speed, static_cast<uint16_t>(pwm));
-            //std::cout << "[ControlTask] 发送控制信息: " << speed << " " << pwm << std::endl;
         } else {
             uart.sendControl(0.0f, static_cast<uint16_t>(uc.pwm_neutral));
         }

@@ -14,6 +14,14 @@ struct SceneControlParams {
     float max_speed = 1.0f;
     float pid_p     = 0.0f;
     float pid_d     = 0.0f;
+    float aim_dist_near    = 0.35f;  // 近前视距离 (m)
+    float coast_speed_decay = 0.9f;  // 盲开速度衰减系数
+    float speed_recovery_k  = 0.3f;  // 加速恢复系数
+
+    // CarScene 专属参数
+    float car_trigger_dist_m = 0.35f;  // 基础触发距离 (m)
+    float car_trigger_speed_k = 0.15f; // 速度系数: trigger = base + speed × k
+    int   car_side_margin    = 8;      // 切除额外边距（像素）
 
     // TrafficSignScene 右转专属参数
     TurnControlParams right;

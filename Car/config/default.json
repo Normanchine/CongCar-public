@@ -31,6 +31,17 @@
         "coast_speed_decay": 0.9,
         "speed_recovery_k": 0.3
       },
+      "CarScene": {
+        "max_speed": 0.5,
+        "pid_p": 0.7,
+        "pid_d": 0.6,
+        "aim_dist_near": 0.35,
+        "coast_speed_decay": 0.9,
+        "speed_recovery_k": 0.01,
+        "car_trigger_dist_m": 0.35,
+        "car_trigger_speed_k": 0.15,
+        "car_side_margin": 8
+      },
       "TrafficSignScene": {
         "max_speed": 0.5,
         "pid_p": 0.95,
@@ -63,7 +74,7 @@
       "class_num": 3,
       "classes": ["sign","person","car"],
       "colors": [[40,220,40],[40,80,255],[255,210,40]],
-      "scene_map": {"sign": "TrafficSignScene"}
+      "scene_map": {"sign": "TrafficSignScene", "car": "CarScene"}
     },
     "vlm": {
       "api_key": "",

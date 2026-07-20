@@ -108,7 +108,7 @@ bool PathFollower::onPurePursuit(const cv::Mat& mask,
     int w = mask.cols, h = mask.rows;
     float cx = w * 0.5f, cy = h * ctrl.car_cy_ratio;
     float cur_spd = (last_speed_ > 0.01f) ? last_speed_ : sp.max_speed;
-    float aim_dist = ctrl.aim_dist_near + cur_spd * ctrl.lookahead_speed_k;
+    float aim_dist = sp.aim_dist_near + cur_spd * ctrl.lookahead_speed_k;
     if (!pathplan::findLookAhead(centers, cx, cy, aim_dist, calib.ppm_x, calib.ppm_y, aim_pt))
         return false;
 
@@ -120,6 +120,7 @@ bool PathFollower::onPurePursuit(const cv::Mat& mask,
 
 void PathFollower::onLost(SharedContext* ctx) {
     const auto& ctrl = ctx->config.control;
+    const auto& sp   = ctrl.scene.at(ctx->scene_manager.currentName());
     lost_frames_++;
 
     if (lost_frames_ > ctrl.max_lost_frames) {
@@ -137,7 +138,7 @@ void PathFollower::onLost(SharedContext* ctx) {
     pwm = std::clamp(pwm, ctrl.pwm_min, ctrl.pwm_max);
     last_pwm_ = pwm;
     ctx->steering_pwm.store(pwm);
-    last_speed_ *= ctrl.coast_speed_decay;
+    last_speed_ *= sp.coast_speed_decay;
     ctx->target_speed.store(last_speed_);
 }
 
@@ -168,5 +169,5 @@ float PathFollower::onSpeed(float error, SharedContext* ctx) {
     if (target < last_speed_) {
         return target;
     }
-    return last_speed_ + (target - last_speed_) * ctrl.speed_recovery_k;
+    return last_speed_ + (target - last_speed_) * sp.speed_recovery_k;
 }

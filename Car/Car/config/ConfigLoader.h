@@ -30,6 +30,12 @@ inline void to_json(json& j, const SceneControlParams& s) {
         {"max_speed", s.max_speed},
         {"pid_p", s.pid_p},
         {"pid_d", s.pid_d},
+        {"aim_dist_near", s.aim_dist_near},
+        {"coast_speed_decay", s.coast_speed_decay},
+        {"speed_recovery_k", s.speed_recovery_k},
+        {"car_trigger_dist_m", s.car_trigger_dist_m},
+        {"car_trigger_speed_k", s.car_trigger_speed_k},
+        {"car_side_margin", s.car_side_margin},
         {"right", s.right},
     };
 }
@@ -38,6 +44,12 @@ inline void from_json(const json& j, SceneControlParams& s) {
     j.at("max_speed").get_to(s.max_speed);
     j.at("pid_p").get_to(s.pid_p);
     j.at("pid_d").get_to(s.pid_d);
+    if (j.contains("aim_dist_near"))    j.at("aim_dist_near").get_to(s.aim_dist_near);
+    if (j.contains("coast_speed_decay")) j.at("coast_speed_decay").get_to(s.coast_speed_decay);
+    if (j.contains("speed_recovery_k"))  j.at("speed_recovery_k").get_to(s.speed_recovery_k);
+    if (j.contains("car_trigger_dist_m")) j.at("car_trigger_dist_m").get_to(s.car_trigger_dist_m);
+    if (j.contains("car_trigger_speed_k")) j.at("car_trigger_speed_k").get_to(s.car_trigger_speed_k);
+    if (j.contains("car_side_margin"))    j.at("car_side_margin").get_to(s.car_side_margin);
     if (j.contains("right")) j.at("right").get_to(s.right);
 }
 
