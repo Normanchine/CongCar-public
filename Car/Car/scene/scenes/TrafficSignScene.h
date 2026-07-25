@@ -9,8 +9,8 @@
 #include <opencv2/core/mat.hpp>
 
 // 交通标志分岔场景
-//   检测 traffic_sign → 裁剪标志图 → 调用千帆视觉大模型 → 直走(左) / 右转(右)
-//   使用异步状态机避免阻塞控制循环：IDLE → REQUESTING → DECIDED
+//   检测 traffic_sign → 裁剪标志图 → 调用 VLM API → 直走(左) / 右转(右)
+//   三阶段状态机：APPROACH（巡线+检测）→ WAIT_VLM（停车等待）→ DRIVE（按决策走）
 class TrafficSignScene : public IScene {
 public:
     TrafficSignScene() = default;
@@ -19,21 +19,17 @@ public:
     void run(SharedContext* ctx) override;
 
 private:
-    // VLM 三阶段状态机：APPROACH（巡线+检测）→ WAIT_VLM（停车等待）→ DRIVE（按决策走）
+    // 三阶段状态
     enum class VlmState { APPROACH, WAIT_VLM, DRIVE };
 
-    // 准备发送给 VLM 的图片：裁剪 + 扩边 + 缩放 → JPEG 字节
-    static std::vector<uint8_t> prepareSignImage(const cv::Mat& frame,
-                                                  float x1, float y1,
-                                                  float x2, float y2,
-                                                  const VlmConfig& cfg);
+    // 阶段1：正常巡线 + 检测交通标志 → 稳定+延时 → 发起 VLM 请求
+    void handleApproach(SharedContext* ctx, const cv::Mat& seg_mask);
 
-    // 同步调用千帆 VLM API（在后台线程中执行），返回 0=直走 / 1=右转
-    static int callVlmApi(const std::vector<uint8_t>& jpeg_bytes,
-                          const VlmConfig& cfg);
+    // 阶段2：停车等待 VLM 决策返回
+    void handleWaitVlm(SharedContext* ctx);
 
-    // 清理 VLM 输出文本
-    static std::string cleanOutput(const std::string& text);
+    // 阶段3：按 VLM 决策执行巡线
+    void handleDrive(SharedContext* ctx, const cv::Mat& seg_mask);
 
     // 重写 onFork/onPD/onSpeed：按 fork_side 选岔路方向 + 直走/右转两套参数
     class Follower : public PathFollower {
@@ -45,14 +41,14 @@ private:
         float onSpeed(float error, SharedContext* ctx) override;
     };
 
-    Follower follower_;   // 阶段1/阶段3 共用（纯 PathFollower，无锁舵降速）
+    Follower follower_;
     int traffic_sign_class_id_ = -1;
 
-    // 异步 VLM 状态（使用 detached thread + shared_ptr<atomic> 避免 future 析构阻塞）
-    VlmState vlm_state_       = VlmState::APPROACH;
+    // 状态机
+    VlmState vlm_state_ = VlmState::APPROACH;
     std::shared_ptr<std::atomic<int>> vlm_result_;  // -1=进行中, 0=直走, 1=右转
-    int      cached_fork_side_ = 0;
-    int      stable_count_     = 0;
-    int      delay_counter_    = 0;  // 稳定检测后的帧延迟计数
+    int cached_fork_side_  = 0;
+    int stable_count_      = 0;
+    int delay_counter_     = 0;
     std::chrono::steady_clock::time_point vlm_request_start_;
 };

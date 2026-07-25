@@ -21,6 +21,7 @@ add_executable(car
     hal/memory/shared_memory_manager.cpp
     hal/uart/UartIO.cpp
     common/PerfStats.cpp
+    common/VlmClient.cpp
     inference/RKNNEngine.cpp
     tasks/CaptureTask.cpp
     tasks/SegmentationTask.cpp
