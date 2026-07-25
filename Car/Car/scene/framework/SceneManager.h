@@ -20,10 +20,22 @@ public:
         }
     }
 
-    // 切换场景：被语义分割/目标检测线程调用
+    // 场景主动调用：阻止 / 允许场景切换
+    // 需要阻止切换的场景（如超车中）调用 hold()，完成后 release()，默认放行
+    void hold()    { _holding.store(true, std::memory_order_release); }
+    void release() { _holding.store(false, std::memory_order_release); }
+
+    // 切换场景：被 DetectionTask 调用
+    // 如果当前场景已 hold()，则拒绝切换（DetTask 下帧会再试）
     // shared_ptr + atomic_store 保证 run() 中正在执行的旧场景不会被析构
     bool switchTo(const std::string& sceneName) {
         if (sceneName == _currentName) return true;  // 相同场景不切换
+
+        if (_holding.load(std::memory_order_acquire)) {
+            std::cout << "[SceneMgr] 场景 " << _currentName
+                      << " 阻止切换到 " << sceneName << std::endl;
+            return false;
+        }
 
         auto newScene = SceneFactory::instance().create(sceneName);
         if (!newScene) {
@@ -56,4 +68,5 @@ public:
 private:
     std::shared_ptr<IScene> _currentScene;
     std::string             _currentName = "NormalScene";  // 默认启动场景
+    std::atomic<bool>       _holding{false};               // true=场景持有控制权，禁止切换
 };

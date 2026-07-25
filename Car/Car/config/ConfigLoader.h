@@ -98,7 +98,7 @@ inline void to_json(json& j, const ControlConfig& c) {
 inline void from_json(const json& j, ControlConfig& c) {
     j.at("car_length").get_to(c.car_length);
     j.at("car_cy_ratio").get_to(c.car_cy_ratio);
-    j.at("aim_dist_near").get_to(c.aim_dist_near);
+    if (j.contains("aim_dist_near"))    j.at("aim_dist_near").get_to(c.aim_dist_near);
     j.at("pwm_mid").get_to(c.pwm_mid);
     j.at("pwm_min").get_to(c.pwm_min);
     j.at("pwm_max").get_to(c.pwm_max);
