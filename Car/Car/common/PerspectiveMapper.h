@@ -28,7 +28,7 @@ public:
             dst[2] = cv::Point2f(static_cast<float>(bird_w - 1), static_cast<float>(bird_h - 1));
             dst[3] = cv::Point2f(0, static_cast<float>(bird_h - 1));
             cv::Mat M_orig = cv::getPerspectiveTransform(src, dst);
-            cv::Mat M_inv  = M_orig.inv();
+            cv::Mat M_inv_tmp = M_orig.inv();
 
             int new_w = static_cast<int>(bird_w * scale_w);
             float offset = (new_w - bird_w) / 2.0f;
@@ -43,7 +43,7 @@ public:
 
             // 反算回图像坐标，得到新的源四角
             std::vector<cv::Point2f> new_src;
-            cv::perspectiveTransform(old_bev_corners, new_src, M_inv);
+            cv::perspectiveTransform(old_bev_corners, new_src, M_inv_tmp);
 
             // 扩展后的目标四角
             cv::Point2f new_dst[4] = {
@@ -57,6 +57,7 @@ public:
             bird_w_ = new_w;
             bird_h_ = bird_h;
         }
+        M_inv_ = M_.inv();
         ready_ = true;
     }
 
@@ -78,8 +79,16 @@ public:
         return dst[0];
     }
 
+    // 鸟瞰图 → 图像坐标（整图逆透视变换，PersonScene 弧线回投用）
+    cv::Mat warpInverse(const cv::Mat& bird, int dst_w, int dst_h) const {
+        cv::Mat dst;
+        cv::warpPerspective(bird, dst, M_inv_, cv::Size(dst_w, dst_h));
+        return dst;
+    }
+
 private:
     cv::Mat M_;
+    cv::Mat M_inv_;
     int bird_w_ = 0;
     int bird_h_ = 0;
     bool ready_ = false;

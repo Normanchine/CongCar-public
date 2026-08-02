@@ -26,6 +26,12 @@ struct SceneControlParams {
     // TrafficSignScene 右转专属参数
     TurnControlParams right;
 
+    // PersonScene 绕人弧形超车参数
+    float person_critical_dist_m    = 0.5f;  // 触发弧线的纵向临界距离 (m)
+    float person_arc_offset_ratio   = 1.5f;  // 弧线最大偏移 = 赛道宽 × ratio
+    float person_arc_takeoff_dist_m = 0.15f; // 弧线起飞点到车底距离 (m)
+    float person_arc_landing_dist_m = 0.7f;  // 弧线着陆点超过人的距离 (m)
+
 };
 
 struct ForkConfig {

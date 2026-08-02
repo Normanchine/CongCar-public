@@ -36,6 +36,10 @@ inline void to_json(json& j, const SceneControlParams& s) {
         {"car_trigger_dist_m", s.car_trigger_dist_m},
         {"car_trigger_speed_k", s.car_trigger_speed_k},
         {"car_side_margin", s.car_side_margin},
+        {"person_critical_dist_m", s.person_critical_dist_m},
+        {"person_arc_offset_ratio", s.person_arc_offset_ratio},
+        {"person_arc_takeoff_dist_m", s.person_arc_takeoff_dist_m},
+        {"person_arc_landing_dist_m", s.person_arc_landing_dist_m},
         {"right", s.right},
     };
 }
@@ -50,6 +54,10 @@ inline void from_json(const json& j, SceneControlParams& s) {
     if (j.contains("car_trigger_dist_m")) j.at("car_trigger_dist_m").get_to(s.car_trigger_dist_m);
     if (j.contains("car_trigger_speed_k")) j.at("car_trigger_speed_k").get_to(s.car_trigger_speed_k);
     if (j.contains("car_side_margin"))    j.at("car_side_margin").get_to(s.car_side_margin);
+    if (j.contains("person_critical_dist_m"))    j.at("person_critical_dist_m").get_to(s.person_critical_dist_m);
+    if (j.contains("person_arc_offset_ratio"))   j.at("person_arc_offset_ratio").get_to(s.person_arc_offset_ratio);
+    if (j.contains("person_arc_takeoff_dist_m")) j.at("person_arc_takeoff_dist_m").get_to(s.person_arc_takeoff_dist_m);
+    if (j.contains("person_arc_landing_dist_m")) j.at("person_arc_landing_dist_m").get_to(s.person_arc_landing_dist_m);
     if (j.contains("right")) j.at("right").get_to(s.right);
 }
 
