@@ -78,6 +78,7 @@ struct SharedContext {
     std::atomic<float> steering_pwm{1500};   // 舵机PWM (500-2500, 中值1500)
     std::atomic<float> target_speed{0};      // 目标速度
     std::atomic<float> last_error{0};        // 跨场景error继承（防PD脉冲）
+    std::atomic<float> yaw{0.0f};            // 航向角（度），下位机IMU通过串口addr=0x09提供
     float steering_dir = 1.0f;               // 转向方向（AR图像左右镜像时置-1）
 
     // ---- UART直发（场景紧急停车可绕过ControlTask下发循环） ----

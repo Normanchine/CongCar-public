@@ -12,6 +12,7 @@ static constexpr uint8_t FRAME_HEAD      = 0x42;
 static constexpr uint8_t ADDR_CARCTRL    = 0x01;
 static constexpr uint8_t ADDR_BUZZER     = 0x04;
 static constexpr uint8_t ADDR_KEY        = 0x06;
+static constexpr uint8_t ADDR_IMU        = 0x09;   // IMU姿态数据（下位机→上位机）
 static constexpr uint8_t CTRL_FRAME_LEN  = 10;   // head+addr+len+speed(4)+pwm(2)+chk
 
 static constexpr uint8_t FRAME_LEN_MIN   = 4;
@@ -201,6 +202,20 @@ void UartIO::receiveLoop() {
         // 分发
         if (addr == ADDR_KEY) {
             keypress_.store(true, std::memory_order_release);
+        } else if (addr == ADDR_IMU && length == 10) {
+            // IMU帧: head+addr+len + 6字节数据(3×int16大端: roll/pitch/yaw) + chk
+            // 维特智能IMU，换算公式: angle(°) = raw / 32768.0 * 180.0
+            auto parseI16 = [](uint8_t hi, uint8_t lo) -> int16_t {
+                return static_cast<int16_t>((static_cast<uint16_t>(hi) << 8) | lo);
+            };
+            int16_t roll_raw  = parseI16(payload[0], payload[1]);
+            int16_t pitch_raw = parseI16(payload[2], payload[3]);
+            int16_t yaw_raw   = parseI16(payload[4], payload[5]);
+
+            constexpr float kAngleScale = 180.0f / 32768.0f;
+            roll_.store(static_cast<float>(roll_raw) * kAngleScale, std::memory_order_release);
+            pitch_.store(static_cast<float>(pitch_raw) * kAngleScale, std::memory_order_release);
+            yaw_.store(static_cast<float>(yaw_raw) * kAngleScale, std::memory_order_release);
         }
     }
 }

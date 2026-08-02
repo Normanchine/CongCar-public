@@ -47,13 +47,16 @@ void ControlTask::run() {
         // 2b. 执行当前场景（不管按键状态，场景始终运行）
         ctx_->scene_manager.run(ctx_);
 
-        // 2c. 按键切换：只控制是否下发串口指令
+        // 2c. 同步IMU数据（下位机串口→SharedContext）
+        ctx_->yaw.store(uart.getYaw(), std::memory_order_release);
+
+        // 2d. 按键切换：只控制是否下发串口指令
         if (uart.consumeKeypress()) {
             running = !running;
             std::cout << "[ControlTask] 通信: " << (running ? "开启" : "关闭") << std::endl;
         }
 
-        // 2d. 下发控制（running=false 时发空指令，车不动）
+        // 2e. 下发控制（running=false 时发空指令，车不动）
         if (running) {
             float speed = ctx_->target_speed.load(std::memory_order_acquire);
             float pwm   = ctx_->steering_pwm.load(std::memory_order_acquire);
@@ -62,7 +65,7 @@ void ControlTask::run() {
             uart.sendControl(0.0f, static_cast<uint16_t>(uc.pwm_neutral));
         }
 
-        // 3e. 性能统计
+        // 2f. 性能统计
         auto elapsed_us = std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now() - t_start).count();
         ctx_->perf_stats.record(SLOT_CONTROL, elapsed_us);
