@@ -203,19 +203,33 @@ void UartIO::receiveLoop() {
         if (addr == ADDR_KEY) {
             keypress_.store(true, std::memory_order_release);
         } else if (addr == ADDR_IMU && length == 10) {
-            // IMU帧: head+addr+len + 6字节数据(3×int16大端: roll/pitch/yaw) + chk
-            // 维特智能IMU，换算公式: angle(°) = raw / 32768.0 * 180.0
-            auto parseI16 = [](uint8_t hi, uint8_t lo) -> int16_t {
-                return static_cast<int16_t>((static_cast<uint16_t>(hi) << 8) | lo);
+            // IMU帧: head+addr+len + 6字节数据(3×int16: roll/pitch/yaw) + chk
+            // 维特智能IMU I2C读取为小端序 [低字节, 高字节]，需 (高<<8)|低
+            // 官方SDK: sReg[i] = (buff[i*2+1]<<8) | buff[i*2]
+            auto parseI16LE = [](const uint8_t* p) -> int16_t {
+                return static_cast<int16_t>((static_cast<uint16_t>(p[1]) << 8) | p[0]);
             };
-            int16_t roll_raw  = parseI16(payload[0], payload[1]);
-            int16_t pitch_raw = parseI16(payload[2], payload[3]);
-            int16_t yaw_raw   = parseI16(payload[4], payload[5]);
+            int16_t roll_raw  = parseI16LE(&payload[0]);
+            int16_t pitch_raw = parseI16LE(&payload[2]);
+            int16_t yaw_raw   = parseI16LE(&payload[4]);
 
             constexpr float kAngleScale = 180.0f / 32768.0f;
-            roll_.store(static_cast<float>(roll_raw) * kAngleScale, std::memory_order_release);
-            pitch_.store(static_cast<float>(pitch_raw) * kAngleScale, std::memory_order_release);
-            yaw_.store(static_cast<float>(yaw_raw) * kAngleScale, std::memory_order_release);
+            float r = static_cast<float>(roll_raw) * kAngleScale;
+            float p = static_cast<float>(pitch_raw) * kAngleScale;
+            float y = static_cast<float>(yaw_raw) * kAngleScale;
+            roll_.store(r, std::memory_order_release);
+            pitch_.store(p, std::memory_order_release);
+            yaw_.store(y, std::memory_order_release);
+
+            // 调试打印：前10帧 + 之后每100帧打印一次
+            static int imu_cnt = 0;
+            ++imu_cnt;
+            if (imu_cnt <= 10 || imu_cnt % 100 == 0) {
+                std::cout << "[IMU] #" << imu_cnt
+                          << " roll=" << r << "° pitch=" << p << "° yaw=" << y
+                          << "° (raw: " << roll_raw << "," << pitch_raw << "," << yaw_raw << ")"
+                          << std::endl;
+            }
         }
     }
 }
