@@ -234,37 +234,73 @@ void DisplayTask::run() {
             cv::Mat combined;
             cv::hconcat(display, bird_color, combined);
 
-            // ---- 3.5 岔路mask对比：处理前 | 处理后 ----
+            // ---- 3.5 引导线地图（PersonScene HOLDING 阶段显示） ----
             {
-                std::lock_guard<std::mutex> lock(ctx_->fork_mtx_);
-                if (ctx_->fork_valid_) {
-                    int mw = 240, mh = static_cast<int>(static_cast<float>(mw)
-                        * ctx_->fork_raw_mask_.rows / ctx_->fork_raw_mask_.cols);
-                    auto renderMask = [&](const cv::Mat& m) -> cv::Mat {
-                        cv::Mat resized, vis;
-                        cv::resize(m, resized, cv::Size(mw, mh), 0, 0, cv::INTER_NEAREST);
-                        vis = cv::Mat(mh, mw, CV_8UC3);
-                        vis.setTo(kBirdBg);
-                        vis.setTo(kBirdTrack, resized);
-                        return vis;
-                    };
+                std::lock_guard<std::mutex> lock(ctx_->guide_mtx_);
+                if (ctx_->guide_valid_ && !ctx_->guide_mask_.empty()) {
+                    auto& gm = ctx_->guide_mask_;
+                    int gh = 200;
+                    int gw = static_cast<int>(static_cast<float>(gh)
+                        * gm.cols / gm.rows);
 
-                    cv::Mat raw_vis = renderMask(ctx_->fork_raw_mask_);
-                    cv::putText(raw_vis, "raw", cv::Point(4, 14),
-                                cv::FONT_HERSHEY_SIMPLEX, 0.4, kHudText, 1);
+                    // 底图：宽鸟瞰赛道mask
+                    cv::Mat guide_vis(gh, gw, CV_8UC3);
+                    guide_vis.setTo(kBirdBg);
+                    cv::Mat mask_rz;
+                    cv::resize(gm, mask_rz, cv::Size(gw, gh), 0, 0, cv::INTER_NEAREST);
+                    guide_vis.setTo(kBirdTrack, mask_rz);
 
-                    cv::Mat done_vis = renderMask(ctx_->fork_done_mask_);
-                    cv::putText(done_vis, "done", cv::Point(4, 14),
-                                cv::FONT_HERSHEY_SIMPLEX, 0.4, kHudText, 1);
+                    float sx = static_cast<float>(gw) / gm.cols;
+                    float sy = static_cast<float>(gh) / gm.rows;
 
-                    cv::Mat fork_row;
-                    cv::hconcat(raw_vis, done_vis, fork_row);
-                    // 调整宽度与combined一致
-                    if (fork_row.cols != combined.cols) {
-                        cv::resize(fork_row, fork_row,
-                                   cv::Size(combined.cols, fork_row.rows));
+                    // 引导线点（黄色小点）
+                    for (const auto& pt : ctx_->guide_pts_) {
+                        cv::circle(guide_vis,
+                            cv::Point(static_cast<int>(pt.x * sx),
+                                      static_cast<int>(pt.y * sy)),
+                            1, kCenterColor, -1);
                     }
-                    cv::vconcat(combined, fork_row, combined);
+
+                    // M 拐点（红色实心圈 + 标签）
+                    cv::Point ptM(static_cast<int>(ctx_->guide_M_.x * sx),
+                                  static_cast<int>(ctx_->guide_M_.y * sy));
+                    cv::circle(guide_vis, ptM, 5, cv::Scalar(0, 0, 255), -1);
+                    cv::putText(guide_vis, "M", ptM + cv::Point(8, 4),
+                                cv::FONT_HERSHEY_SIMPLEX, 0.4,
+                                cv::Scalar(0, 0, 255), 1);
+
+                    // E 终点（绿色实心圈 + 标签）
+                    cv::Point ptE(static_cast<int>(ctx_->guide_E_.x * sx),
+                                  static_cast<int>(ctx_->guide_E_.y * sy));
+                    cv::circle(guide_vis, ptE, 5, cv::Scalar(0, 255, 0), -1);
+                    cv::putText(guide_vis, "E", ptE + cv::Point(8, 4),
+                                cv::FONT_HERSHEY_SIMPLEX, 0.4,
+                                cv::Scalar(0, 255, 0), 1);
+
+                    // 当前锁定目标点（蓝色空心圈）
+                    cv::Point ptT(static_cast<int>(ctx_->guide_target_.x * sx),
+                                  static_cast<int>(ctx_->guide_target_.y * sy));
+                    cv::circle(guide_vis, ptT, 6, kAimColor, 2);
+
+                    // 车当前位置（蓝色实心圈 + 朝向箭头 + "Car"标签）
+                    cv::Point ptCar(static_cast<int>(ctx_->guide_car_pt_.x * sx),
+                                    static_cast<int>(ctx_->guide_car_pt_.y * sy));
+                    cv::circle(guide_vis, ptCar, 5, kCarColor, -1);
+                    // 朝向箭头（rel_yaw 方向，长度 15px）
+                    float arrow_rad = ctx_->guide_car_yaw_ * static_cast<float>(CV_PI) / 180.0f;
+                    cv::Point ptArrow(ptCar.x + static_cast<int>(15.0f * std::sin(arrow_rad)),
+                                       ptCar.y - static_cast<int>(15.0f * std::cos(arrow_rad)));
+                    cv::arrowedLine(guide_vis, ptCar, ptArrow, kCarColor, 2);
+                    cv::putText(guide_vis, "Car", ptCar + cv::Point(8, 4),
+                                cv::FONT_HERSHEY_SIMPLEX, 0.35, kCarColor, 1);
+                                cv::FONT_HERSHEY_SIMPLEX, 0.35, kCarColor, 1);
+
+                    // 调整宽度与 combined 一致
+                    if (guide_vis.cols != combined.cols) {
+                        cv::resize(guide_vis, guide_vis,
+                                   cv::Size(combined.cols, guide_vis.rows));
+                    }
+                    cv::vconcat(combined, guide_vis, combined);
                 }
             }
 

@@ -16,19 +16,8 @@ bool PathFollower::process(const cv::Mat& seg_mask, SharedContext* ctx) {
     // ---- 0. 宽鸟瞰变换 ----
     cv::Mat wide_mask = ctx->perspective.warp(seg_mask);
 
-    if (ctx->config.debug_mode) {
-        std::lock_guard<std::mutex> lk(ctx->fork_mtx_);
-        ctx->fork_raw_mask_ = wide_mask.clone();
-    }
-
     // ---- 1. 岔路处理（可重写） ----
     onFork(wide_mask, ctx);
-
-    if (ctx->config.debug_mode) {
-        std::lock_guard<std::mutex> lk(ctx->fork_mtx_);
-        ctx->fork_done_mask_ = wide_mask.clone();
-        ctx->fork_valid_ = true;
-    }
 
     // ---- 2. 裁中心区域供路径规划 ----
     int crop_w = calib.bird_width;
