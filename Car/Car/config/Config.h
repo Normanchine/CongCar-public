@@ -1,7 +1,8 @@
 #pragma once
 
-#include <string>
 #include <map>
+#include <string>
+#include <vector>
 
 // TrafficSignScene 右转子配置（嵌套在 SceneControlParams::right）
 struct TurnControlParams {
@@ -18,19 +19,11 @@ struct SceneControlParams {
     float coast_speed_decay = 0.9f;  // 盲开速度衰减系数
     float speed_recovery_k  = 0.3f;  // 加速恢复系数
 
-    // CarScene 专属参数
-    float car_trigger_dist_m = 0.35f;  // 基础触发距离 (m)
-    float car_trigger_speed_k = 0.15f; // 速度系数: trigger = base + speed × k
-    int   car_side_margin    = 8;      // 切除额外边距（像素）
-
     // TrafficSignScene 右转专属参数
     TurnControlParams right;
 
-    // PersonScene 绕人弧形超车参数
-    float person_critical_dist_m    = 0.5f;  // 触发弧线的纵向临界距离 (m)
-    float person_arc_offset_ratio   = 1.5f;  // 弧线最大偏移 = 赛道宽 × ratio
-    float person_arc_takeoff_dist_m = 0.15f; // 弧线起飞点到车底距离 (m)
-    float person_arc_landing_dist_m = 0.7f;  // 弧线着陆点超过人的距离 (m)
+    // PersonScene 引导线绕行参数
+    float person_side_offset_m = 0.4f;       // 引导线拐点 M 距中线的横向偏移 (m)
 
 };
 
@@ -46,6 +39,10 @@ struct ControlConfig {
     float car_length    = 0.316f;      // 轴距 (m)
     float car_cy_ratio  = 0.95f;       // 车底中心 y = 车高 * ratio
     float aim_dist_near = 0.35f;       // 近前视距离 (m)
+
+    // ---- IMU 航向角 ----
+    float yaw_direction = 1.0f;        // 转角方向校准: 右转时yaw增大=+1, 右转时yaw减小=-1
+                                       // 由IMU安装方向决定，必须实测标定，否则左右无意义
 
     // ---- PWM ----
     float pwm_mid = 1500.0f;           // PWM 中值

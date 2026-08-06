@@ -33,13 +33,7 @@ inline void to_json(json& j, const SceneControlParams& s) {
         {"aim_dist_near", s.aim_dist_near},
         {"coast_speed_decay", s.coast_speed_decay},
         {"speed_recovery_k", s.speed_recovery_k},
-        {"car_trigger_dist_m", s.car_trigger_dist_m},
-        {"car_trigger_speed_k", s.car_trigger_speed_k},
-        {"car_side_margin", s.car_side_margin},
-        {"person_critical_dist_m", s.person_critical_dist_m},
-        {"person_arc_offset_ratio", s.person_arc_offset_ratio},
-        {"person_arc_takeoff_dist_m", s.person_arc_takeoff_dist_m},
-        {"person_arc_landing_dist_m", s.person_arc_landing_dist_m},
+        {"person_side_offset_m", s.person_side_offset_m},
         {"right", s.right},
     };
 }
@@ -51,13 +45,7 @@ inline void from_json(const json& j, SceneControlParams& s) {
     if (j.contains("aim_dist_near"))    j.at("aim_dist_near").get_to(s.aim_dist_near);
     if (j.contains("coast_speed_decay")) j.at("coast_speed_decay").get_to(s.coast_speed_decay);
     if (j.contains("speed_recovery_k"))  j.at("speed_recovery_k").get_to(s.speed_recovery_k);
-    if (j.contains("car_trigger_dist_m")) j.at("car_trigger_dist_m").get_to(s.car_trigger_dist_m);
-    if (j.contains("car_trigger_speed_k")) j.at("car_trigger_speed_k").get_to(s.car_trigger_speed_k);
-    if (j.contains("car_side_margin"))    j.at("car_side_margin").get_to(s.car_side_margin);
-    if (j.contains("person_critical_dist_m"))    j.at("person_critical_dist_m").get_to(s.person_critical_dist_m);
-    if (j.contains("person_arc_offset_ratio"))   j.at("person_arc_offset_ratio").get_to(s.person_arc_offset_ratio);
-    if (j.contains("person_arc_takeoff_dist_m")) j.at("person_arc_takeoff_dist_m").get_to(s.person_arc_takeoff_dist_m);
-    if (j.contains("person_arc_landing_dist_m")) j.at("person_arc_landing_dist_m").get_to(s.person_arc_landing_dist_m);
+    if (j.contains("person_side_offset_m")) j.at("person_side_offset_m").get_to(s.person_side_offset_m);
     if (j.contains("right")) j.at("right").get_to(s.right);
 }
 
@@ -86,6 +74,7 @@ inline void to_json(json& j, const ControlConfig& c) {
         {"car_length",          c.car_length},
         {"car_cy_ratio",        c.car_cy_ratio},
         {"aim_dist_near",       c.aim_dist_near},
+        {"yaw_direction",       c.yaw_direction},
         {"pwm_mid",             c.pwm_mid},
         {"pwm_min",             c.pwm_min},
         {"pwm_max",             c.pwm_max},
@@ -107,6 +96,7 @@ inline void from_json(const json& j, ControlConfig& c) {
     j.at("car_length").get_to(c.car_length);
     j.at("car_cy_ratio").get_to(c.car_cy_ratio);
     if (j.contains("aim_dist_near"))    j.at("aim_dist_near").get_to(c.aim_dist_near);
+    if (j.contains("yaw_direction"))    j.at("yaw_direction").get_to(c.yaw_direction);
     j.at("pwm_mid").get_to(c.pwm_mid);
     j.at("pwm_min").get_to(c.pwm_min);
     j.at("pwm_max").get_to(c.pwm_max);
