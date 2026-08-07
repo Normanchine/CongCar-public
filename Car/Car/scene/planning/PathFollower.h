@@ -4,6 +4,7 @@
 #include "../../common/PerspectiveMapper.h"
 #include "../../config/Config.h"
 #include <opencv2/imgproc.hpp>
+#include <chrono>
 #include <vector>
 
 struct SharedContext;
@@ -35,8 +36,8 @@ protected:
                                cv::Point2f& aim_pt,
                                SharedContext* ctx);
 
-    // 丢线容错：默认盲开+速度衰减
-    virtual void onLost(SharedContext* ctx);
+    // 丢线容错：纯跟踪锁冻结 E 点（e_pt=赛道消失前最远点，yaw_rad=当前相对转角）
+    virtual void onLost(const cv::Point2f& e_pt, float yaw_rad, SharedContext* ctx);
 
     // PD 控制：默认返回 pwm 值
     virtual float onPD(float error, SharedContext* ctx);
@@ -51,4 +52,8 @@ protected:
     int   lost_frames_ = 0;
     bool  first_frame_ = true;
     pathplan::ForkState fork_state_;  // 岔路持久化状态（场景切换自动重置）
+
+    // ---- yaw 追踪（每帧刷新 entry_yaw_ 当赛道可见时） ----
+    float entry_yaw_ = 0.0f;
+    std::chrono::steady_clock::time_point last_tp_;
 };

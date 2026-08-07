@@ -53,6 +53,8 @@ private:
     // ---- 车在引导线坐标系上的位置（HOLDING 逐帧由 yaw 驱动更新） ----
     float car_x_ = 0.0f;
     float car_y_ = 0.0f;
+    float car_x_init_ = 0.0f;   // 入口位置（坐标系原点）
+    float car_y_init_ = 0.0f;
     std::chrono::steady_clock::time_point last_tp_;
 
     // ---- IMU 航向角校准 ----

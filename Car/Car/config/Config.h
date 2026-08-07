@@ -23,7 +23,7 @@ struct SceneControlParams {
     TurnControlParams right;
 
     // PersonScene 引导线绕行参数
-    float person_side_offset_m = 0.4f;       // 引导线拐点 M 距中线的横向偏移 (m)
+    float person_side_offset_m = 0.6f;       // 引导线拐点 M 距中线的横向偏移 (m)
 
 };
 

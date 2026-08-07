@@ -86,6 +86,8 @@ void PersonScene::handleApproach(SharedContext* ctx, const cv::Mat& seg_mask) {
     const auto& ctrl = ctx->config.control;
     car_x_ = static_cast<float>(calib.bird_width) * calib.bird_width_scale * 0.5f;
     car_y_ = static_cast<float>(calib.bird_height) * ctrl.car_cy_ratio;
+    car_x_init_ = car_x_;
+    car_y_init_ = car_y_;
     entry_yaw_  = ctx->yaw.load(std::memory_order_acquire);
     rel_yaw_    = 0.0f;
     last_tp_    = std::chrono::steady_clock::now();
@@ -194,13 +196,17 @@ void PersonScene::handleHolding(SharedContext* ctx) {
     {
         std::lock_guard<std::mutex> lk(ctx->guide_mtx_);
         ctx->guide_mask_   = guide_mask_.clone();
-        ctx->guide_pts_    = guide_pts_;        // 固定原始点
+        ctx->guide_pts_    = guide_pts_;
         ctx->guide_M_      = M_;
         ctx->guide_E_      = E_;
         ctx->guide_target_ = target;
-        ctx->guide_car_pt_ = cv::Point2f(car_x_, car_y_);
-        ctx->guide_car_yaw_= rel_yaw_;
         ctx->guide_valid_  = true;
+        // 写入全局坐标系元数据
+        ctx->guide_meta_.origin  = {car_x_init_, car_y_init_};  // 记录入口位置
+        ctx->guide_meta_.e_pt    = E_;
+        ctx->guide_meta_.car_pt  = cv::Point2f(car_x_, car_y_);
+        ctx->guide_meta_.car_yaw = rel_yaw_;
+        ctx->guide_meta_.blind   = false;
     }
 
     // 同时写一份到 bird_centers_ 给右侧鸟瞰图显示

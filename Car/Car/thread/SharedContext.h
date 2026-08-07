@@ -68,16 +68,24 @@ struct SharedContext {
     cv::Point2f              bird_aim_pt_{0, 0};
     bool                     bird_valid_ = false;
 
-    // ---- 引导线地图（PersonScene HOLDING 阶段写，DisplayTask 读） ----
-    std::mutex               guide_mtx_;
+    // ---- 全局坐标系元数据（PathFollower 每帧写，PersonScene HOLDING 时覆盖） ----
+    struct GuideMeta {
+        cv::Point2f origin  = {0, 0};  // 坐标系原点（宽鸟瞰坐标）
+        cv::Point2f e_pt    = {0, 0};  // 当前帧中线最远点（宽鸟瞰坐标，盲开时冻结）
+        cv::Point2f car_pt  = {0, 0};  // 车在坐标系中的实时位置
+        float       car_yaw = 0.0f;    // 车朝向（度，rel_yaw）
+        bool        blind   = false;   // 盲开标记
+    };
+    std::mutex  guide_mtx_;
+    GuideMeta   guide_meta_;
+
+    // ---- 引导线叠加层（PersonScene HOLDING 时有效） ----
     cv::Mat                  guide_mask_;      // 触发帧宽鸟瞰赛道mask（底图）
     std::vector<cv::Point2f> guide_pts_;       // 引导线点集（宽鸟瞰坐标，固定）
-    cv::Point2f              guide_M_         = {0, 0};  // 拐点 M
-    cv::Point2f              guide_E_         = {0, 0};  // 终点 E
-    cv::Point2f              guide_target_    = {0, 0};  // 当前锁定的目标点
-    cv::Point2f              guide_car_pt_    = {0, 0};  // 车当前坐标
-    float                    guide_car_yaw_   = 0.0f;    // 车当前朝向（度, rel_yaw）
-    bool                     guide_valid_     = false;
+    cv::Point2f              guide_M_     = {0, 0};  // 拐点 M
+    cv::Point2f              guide_E_     = {0, 0};  // 终点 E
+    cv::Point2f              guide_target_= {0, 0};  // 当前锁定目标点
+    bool                     guide_valid_ = false;   // PersonScene 是否在 HOLDING
 
     // ---- 控制输出 ----
     std::atomic<float> steering_pwm{1500};   // 舵机PWM (500-2500, 中值1500)
