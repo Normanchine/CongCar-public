@@ -12,7 +12,6 @@ static constexpr uint8_t FRAME_HEAD      = 0x42;
 static constexpr uint8_t ADDR_CARCTRL    = 0x01;
 static constexpr uint8_t ADDR_BUZZER     = 0x04;
 static constexpr uint8_t ADDR_KEY        = 0x06;
-static constexpr uint8_t ADDR_IMU        = 0x09;   // IMU姿态数据（下位机→上位机）
 static constexpr uint8_t CTRL_FRAME_LEN  = 10;   // head+addr+len+speed(4)+pwm(2)+chk
 
 static constexpr uint8_t FRAME_LEN_MIN   = 4;
@@ -202,34 +201,6 @@ void UartIO::receiveLoop() {
         // 分发
         if (addr == ADDR_KEY) {
             keypress_.store(true, std::memory_order_release);
-        } else if (addr == ADDR_IMU && length == 10) {
-            // IMU帧: head+addr+len + 6字节数据(3×int16: roll/pitch/yaw) + chk
-            // 维特智能IMU I2C读取为小端序 [低字节, 高字节]，需 (高<<8)|低
-            // 官方SDK: sReg[i] = (buff[i*2+1]<<8) | buff[i*2]
-            auto parseI16LE = [](const uint8_t* p) -> int16_t {
-                return static_cast<int16_t>((static_cast<uint16_t>(p[1]) << 8) | p[0]);
-            };
-            int16_t roll_raw  = parseI16LE(&payload[0]);
-            int16_t pitch_raw = parseI16LE(&payload[2]);
-            int16_t yaw_raw   = parseI16LE(&payload[4]);
-
-            constexpr float kAngleScale = 180.0f / 32768.0f;
-            float r = static_cast<float>(roll_raw) * kAngleScale;
-            float p = static_cast<float>(pitch_raw) * kAngleScale;
-            float y = static_cast<float>(yaw_raw) * kAngleScale;
-            roll_.store(r, std::memory_order_release);
-            pitch_.store(p, std::memory_order_release);
-            yaw_.store(y, std::memory_order_release);
-
-            // 调试打印：前10帧 + 之后每100帧打印一次
-            static int imu_cnt = 0;
-            ++imu_cnt;
-            if (imu_cnt <= 10 || imu_cnt % 100 == 0) {
-                std::cout << "[IMU] #" << imu_cnt
-                          << " roll=" << r << "° pitch=" << p << "° yaw=" << y
-                          << "° (raw: " << roll_raw << "," << pitch_raw << "," << yaw_raw << ")"
-                          << std::endl;
-            }
         }
     }
 }

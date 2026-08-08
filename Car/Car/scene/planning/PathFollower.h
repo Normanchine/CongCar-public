@@ -4,7 +4,6 @@
 #include "../../common/PerspectiveMapper.h"
 #include "../../config/Config.h"
 #include <opencv2/imgproc.hpp>
-#include <chrono>
 #include <vector>
 
 struct SharedContext;
@@ -36,8 +35,8 @@ protected:
                                cv::Point2f& aim_pt,
                                SharedContext* ctx);
 
-    // 丢线容错：纯跟踪锁冻结 E 点（e_pt=赛道消失前最远点，yaw_rad=当前相对转角）
-    virtual void onLost(const cv::Point2f& e_pt, float yaw_rad, SharedContext* ctx);
+    // 丢线容错：默认盲开+速度衰减（保持方向 + 逐帧递增偏移 → 超限停车）
+    virtual void onLost(SharedContext* ctx);
 
     // PD 控制：默认返回 pwm 值
     virtual float onPD(float error, SharedContext* ctx);
@@ -53,7 +52,8 @@ protected:
     bool  first_frame_ = true;
     pathplan::ForkState fork_state_;  // 岔路持久化状态（场景切换自动重置）
 
-    // ---- yaw 追踪（每帧刷新 entry_yaw_ 当赛道可见时） ----
-    float entry_yaw_ = 0.0f;
-    std::chrono::steady_clock::time_point last_tp_;
+    // 巡线裁切宽度倍数（默认1=裁bird_width中心区；CarScene设bird_width_scale=全宽鸟瞰）
+    // 宽鸟瞰巡线：沿边界走时远处赛道边界不脱离视野，避免丢线
+    float crop_scale_ = 1.0f;
+
 };

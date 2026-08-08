@@ -118,9 +118,12 @@ void drawHUD(cv::Mat& frame, SharedContext* ctx) {
     int   vlm_st  = ctx->vlm_state.load(std::memory_order_acquire);
     int   vlm_dec = ctx->vlm_decision.load(std::memory_order_acquire);
     auto  vlm_ms  = ctx->vlm_latency_ms.load(std::memory_order_acquire);
+    bool  is_car = (name == "CarScene");
+    int   cedge  = ctx->car_edge.load(std::memory_order_acquire);
 
-    // 半透明背景
-    cv::Rect roi(x - 8, 4, 280, 112);
+    // 半透明背景（CarScene 时多一行，加高）
+    int hud_h = is_car ? 134 : 112;
+    cv::Rect roi(x - 8, 4, 280, hud_h);
     if (roi.x + roi.width <= frame.cols && roi.y + roi.height <= frame.rows) {
         cv::Mat bg = frame(roi);
         cv::Mat dark(roi.height, roi.width, CV_8UC3, kHudBg);
@@ -157,6 +160,15 @@ void drawHUD(cv::Mat& frame, SharedContext* ctx) {
     }
     cv::putText(frame, oss.str(),
                 cv::Point(x, y), cv::FONT_HERSHEY_SIMPLEX, 0.45, kHudText, 1);
+
+    // CarScene 沿边方向（仅 CarScene 显示）
+    if (is_car) {
+        y += h;
+        const char* edge_name =
+            (cedge > 0) ? "RIGHT edge" : (cedge < 0) ? "LEFT edge" : "CENTER";
+        cv::putText(frame, "Car: " + std::string(edge_name),
+                    cv::Point(x, y), cv::FONT_HERSHEY_SIMPLEX, 0.45, kHudText, 1);
+    }
 }
 
 } // namespace
@@ -201,24 +213,21 @@ void DisplayTask::run() {
             }
 
             // ---- 2. 右侧：鸟瞰图（赛道mask + 中线 + 前视点） ----
-            int bird_w = ctx_->config.calib.bird_width;
-            int bird_h = ctx_->config.calib.bird_height;
-            cv::Mat bird_color(bird_h, bird_w, CV_8UC3);
-
+            cv::Mat bird_color;
             {
                 std::lock_guard<std::mutex> lock(ctx_->bird_mtx_);
                 if (ctx_->bird_valid_ && !ctx_->bird_mask_.empty()) {
-                    bird_color.setTo(kBirdBg);
-                    cv::Mat mask_disp = ctx_->bird_mask_;
-                    if (mask_disp.cols != bird_w) {
-                        cv::resize(mask_disp, mask_disp, cv::Size(bird_w, bird_h),
-                                   0, 0, cv::INTER_NEAREST);
-                    }
-                    bird_color.setTo(kBirdTrack, mask_disp);
+                    // 画布尺寸跟随 mask 原生尺寸：CarScene 宽鸟瞰(960) / 其他场景裁切(240)
+                    int bird_w = ctx_->bird_mask_.cols;
+                    int bird_h = ctx_->bird_mask_.rows;
+                    bird_color = cv::Mat(bird_h, bird_w, CV_8UC3, kBirdBg);
+                    bird_color.setTo(kBirdTrack, ctx_->bird_mask_);
                     drawBirdView(bird_color, ctx_->bird_centers_, ctx_->bird_aim_pt_,
                                  ctx_->config.control.car_cy_ratio, 0.0f);
                 } else {
-                    bird_color.setTo(kBirdBg);
+                    bird_color = cv::Mat(ctx_->config.calib.bird_height,
+                                         ctx_->config.calib.bird_width,
+                                         CV_8UC3, kBirdBg);
                 }
             }
             // BGR→RGB，与左侧display统一色域后再拼接
@@ -233,89 +242,6 @@ void DisplayTask::run() {
             }
             cv::Mat combined;
             cv::hconcat(display, bird_color, combined);
-
-            // ---- 3.5 全局坐标系面板（持续显示） ----
-            {
-                const auto& calib = ctx_->config.calib;
-                const auto& ctrl  = ctx_->config.control;
-                float canvas_w = static_cast<float>(calib.bird_width)
-                               * calib.bird_width_scale;
-                float canvas_h = static_cast<float>(calib.bird_height);
-
-                int gh = 200;
-                int gw = static_cast<int>(canvas_w * gh / canvas_h);
-
-                cv::Mat panel(gh, gw, CV_8UC3);
-                panel.setTo(kBirdBg);
-
-                float sx = static_cast<float>(gw) / canvas_w;
-                float sy = static_cast<float>(gh) / canvas_h;
-
-                std::lock_guard<std::mutex> lock(ctx_->guide_mtx_);
-                const auto& meta = ctx_->guide_meta_;
-
-                // 原点（灰色圈）
-                cv::Point ptO(static_cast<int>(meta.origin.x * sx),
-                              static_cast<int>(meta.origin.y * sy));
-                cv::circle(panel, ptO, 4, cv::Scalar(150, 150, 150), -1);
-
-                // E 点（绿色实心 + 标签）
-                cv::Point ptE(static_cast<int>(meta.e_pt.x * sx),
-                              static_cast<int>(meta.e_pt.y * sy));
-                cv::circle(panel, ptE, 5, cv::Scalar(0, 255, 0), -1);
-                cv::putText(panel, "E", ptE + cv::Point(8, 4),
-                            cv::FONT_HERSHEY_SIMPLEX, 0.4,
-                            cv::Scalar(0, 255, 0), 1);
-
-                // 车（蓝色实心 + 朝向箭头 + "Car"）
-                cv::Point ptCar(static_cast<int>(meta.car_pt.x * sx),
-                                static_cast<int>(meta.car_pt.y * sy));
-                cv::circle(panel, ptCar, 5, kCarColor, -1);
-                float arrow_rad = meta.car_yaw * static_cast<float>(CV_PI) / 180.0f;
-                cv::Point ptArrow(
-                    ptCar.x + static_cast<int>(15.0f * std::sin(arrow_rad)),
-                    ptCar.y - static_cast<int>(15.0f * std::cos(arrow_rad)));
-                cv::arrowedLine(panel, ptCar, ptArrow, kCarColor, 2);
-                cv::putText(panel, "Car", ptCar + cv::Point(8, 4),
-                            cv::FONT_HERSHEY_SIMPLEX, 0.35, kCarColor, 1);
-
-                // PersonScene HOLDING 叠加层
-                if (ctx_->guide_valid_ && !ctx_->guide_mask_.empty()) {
-                    // 引导线点（黄色）
-                    for (const auto& pt : ctx_->guide_pts_) {
-                        cv::circle(panel,
-                            cv::Point(static_cast<int>(pt.x * sx),
-                                      static_cast<int>(pt.y * sy)),
-                            1, kCenterColor, -1);
-                    }
-                    // M 拐点（红色实心 + 标签）
-                    cv::Point ptM(static_cast<int>(ctx_->guide_M_.x * sx),
-                                  static_cast<int>(ctx_->guide_M_.y * sy));
-                    cv::circle(panel, ptM, 5, cv::Scalar(0, 0, 255), -1);
-                    cv::putText(panel, "M", ptM + cv::Point(8, 4),
-                                cv::FONT_HERSHEY_SIMPLEX, 0.4,
-                                cv::Scalar(0, 0, 255), 1);
-                    // 当前锁定目标点（蓝色空心圈）
-                    cv::Point ptT(static_cast<int>(ctx_->guide_target_.x * sx),
-                                  static_cast<int>(ctx_->guide_target_.y * sy));
-                    cv::circle(panel, ptT, 6, kAimColor, 2);
-                }
-
-                // 盲开提示
-                if (meta.blind) {
-                    cv::putText(panel, "BLIND",
-                                cv::Point(4, 14),
-                                cv::FONT_HERSHEY_SIMPLEX, 0.45,
-                                cv::Scalar(0, 140, 255), 1);
-                }
-
-                // 调整宽度与 combined 一致
-                if (panel.cols != combined.cols) {
-                    cv::resize(panel, panel,
-                               cv::Size(combined.cols, panel.rows));
-                }
-                cv::vconcat(combined, panel, combined);
-            }
 
             // ---- 4. HUD叠加 ----
             drawHUD(combined, ctx_);

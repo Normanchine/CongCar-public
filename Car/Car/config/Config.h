@@ -22,9 +22,6 @@ struct SceneControlParams {
     // TrafficSignScene 右转专属参数
     TurnControlParams right;
 
-    // PersonScene 引导线绕行参数
-    float person_side_offset_m = 0.6f;       // 引导线拐点 M 距中线的横向偏移 (m)
-
 };
 
 struct ForkConfig {
@@ -39,10 +36,6 @@ struct ControlConfig {
     float car_length    = 0.316f;      // 轴距 (m)
     float car_cy_ratio  = 0.95f;       // 车底中心 y = 车高 * ratio
     float aim_dist_near = 0.35f;       // 近前视距离 (m)
-
-    // ---- IMU 航向角 ----
-    float yaw_direction = 1.0f;        // 转角方向校准: 右转时yaw增大=+1, 右转时yaw减小=-1
-                                       // 由IMU安装方向决定，必须实测标定，否则左右无意义
 
     // ---- PWM ----
     float pwm_mid = 1500.0f;           // PWM 中值

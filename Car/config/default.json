@@ -6,7 +6,6 @@
   "control": {
     "car_length": 0.193,
     "car_cy_ratio": 0.95,
-    "yaw_direction": -1.0,
     "pwm_mid": 1560.0,
     "pwm_min": 500.0,
     "pwm_max": 2500.0,
@@ -45,14 +44,13 @@
           "pid_d": 0.7
         }
       },
-      "PersonScene": {
-        "max_speed": 0.6,
-        "pid_p": 0.95,
-        "pid_d": 1.4,
-        "aim_dist_near": 0.20,
+      "CarScene": {
+        "max_speed": 0.5,
+        "pid_p": 0.8,
+        "pid_d": 0.5,
+        "aim_dist_near": 0.15,
         "coast_speed_decay": 0.9,
-        "speed_recovery_k": 0.3,
-        "person_side_offset_m": 0.6
+        "speed_recovery_k": 0.3
       }
     }
   },
@@ -73,7 +71,7 @@
       "class_num": 3,
       "classes": ["sign","person","car"],
       "colors": [[40,220,40],[40,80,255],[255,210,40]],
-      "scene_map": {"sign": "TrafficSignScene", "person": "PersonScene"}
+      "scene_map": {"sign": "TrafficSignScene", "car": "CarScene"}
     },
     "vlm": {
       "api_key": "",

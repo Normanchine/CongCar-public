@@ -68,7 +68,7 @@ struct SharedContext {
     cv::Point2f              bird_aim_pt_{0, 0};
     bool                     bird_valid_ = false;
 
-    // ---- 全局坐标系元数据（PathFollower 每帧写，PersonScene HOLDING 时覆盖） ----
+    // ---- 全局坐标系元数据（PathFollower 每帧写） ----
     struct GuideMeta {
         cv::Point2f origin  = {0, 0};  // 坐标系原点（宽鸟瞰坐标）
         cv::Point2f e_pt    = {0, 0};  // 当前帧中线最远点（宽鸟瞰坐标，盲开时冻结）
@@ -79,20 +79,15 @@ struct SharedContext {
     std::mutex  guide_mtx_;
     GuideMeta   guide_meta_;
 
-    // ---- 引导线叠加层（PersonScene HOLDING 时有效） ----
-    cv::Mat                  guide_mask_;      // 触发帧宽鸟瞰赛道mask（底图）
-    std::vector<cv::Point2f> guide_pts_;       // 引导线点集（宽鸟瞰坐标，固定）
-    cv::Point2f              guide_M_     = {0, 0};  // 拐点 M
-    cv::Point2f              guide_E_     = {0, 0};  // 终点 E
-    cv::Point2f              guide_target_= {0, 0};  // 当前锁定目标点
-    bool                     guide_valid_ = false;   // PersonScene 是否在 HOLDING
-
     // ---- 控制输出 ----
     std::atomic<float> steering_pwm{1500};   // 舵机PWM (500-2500, 中值1500)
     std::atomic<float> target_speed{0};      // 目标速度
     std::atomic<float> last_error{0};        // 跨场景error继承（防PD脉冲）
-    std::atomic<float> yaw{0.0f};            // 航向角（度），下位机IMU通过串口addr=0x09提供
     float steering_dir = 1.0f;               // 转向方向（AR图像左右镜像时置-1）
+
+    // ---- CarScene 沿边方向（CarScene写，DisplayTask读，HUD显示） ----
+    // -1=沿左边界 0=未锁存(沿中线) +1=沿右边界
+    std::atomic<int> car_edge{0};
 
     // ---- UART直发（场景紧急停车可绕过ControlTask下发循环） ----
     UartIO* uart_io = nullptr;

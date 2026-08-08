@@ -165,9 +165,9 @@ inline void handleFork(cv::Mat& mask, ForkState& state,
     detectPass(0, +1);
 }
 
-// ---- 逐行扫描中线（纵向赛道：从左/右找白色像素，取中点） ----
-inline void extractCenterlineVertical(const cv::Mat& mask,
-                                      std::vector<cv::Point2f>& out) {
+// ---- 逐行扫描赛道边界：edge=-1 取左边界, +1 取右边界, 0 取中点 ----
+// CarScene 沿边界巡线时直接取单侧边界点（不取中点）
+inline void extractBoundary(const cv::Mat& mask, std::vector<cv::Point2f>& out, int edge) {
     int w = mask.cols, h = mask.rows;
     out.clear();
     out.reserve(h);
@@ -186,14 +186,18 @@ inline void extractCenterlineVertical(const cv::Mat& mask,
         }
         if (right < 0) continue;
 
-        out.emplace_back((left + right) * 0.5f, static_cast<float>(r));
+        float x;
+        if (edge < 0)      x = static_cast<float>(left);
+        else if (edge > 0) x = static_cast<float>(right);
+        else               x = (left + right) * 0.5f;
+        out.emplace_back(x, static_cast<float>(r));
     }
 }
 
 // ---- 中线提取：逐行扫描左右边界取中点 ----
 inline void extractCenterline(const cv::Mat& mask,
                               std::vector<cv::Point2f>& out) {
-    extractCenterlineVertical(mask, out);
+    extractBoundary(mask, out, 0);
 }
 
 // ---- 滑动平均滤波（只平滑中线偏移方向，保留原始扫描行/列坐标） ----

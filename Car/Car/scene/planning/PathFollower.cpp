@@ -4,8 +4,6 @@
 #include <cmath>
 #include <iostream>
 
-#define DEG2RAD (static_cast<float>(M_PI) / 180.0f)
-
 // ---- 模板方法：固定流程 ----
 bool PathFollower::process(const cv::Mat& seg_mask, SharedContext* ctx) {
     const auto& calib = ctx->config.calib;
@@ -15,8 +13,6 @@ bool PathFollower::process(const cv::Mat& seg_mask, SharedContext* ctx) {
     if (first_frame_) {
         last_error_ = ctx->last_error.load(std::memory_order_acquire);
         last_speed_ = ctx->target_speed.load(std::memory_order_acquire);
-        entry_yaw_  = ctx->yaw.load(std::memory_order_acquire);
-        last_tp_    = std::chrono::steady_clock::now();
     }
 
     // ---- 0. 宽鸟瞰变换 ----
@@ -25,8 +21,8 @@ bool PathFollower::process(const cv::Mat& seg_mask, SharedContext* ctx) {
     // ---- 1. 岔路处理（可重写） ----
     onFork(wide_mask, ctx);
 
-    // ---- 2. 裁中心区域供路径规划 ----
-    int crop_w = calib.bird_width;
+    // ---- 2. 裁中心区域供路径规划（crop_scale_>1 时用更宽视野） ----
+    int crop_w = static_cast<int>(calib.bird_width * crop_scale_);
     int offset_x = (wide_mask.cols - crop_w) / 2;
     cv::Mat mask = wide_mask(cv::Rect(offset_x, 0, crop_w, wide_mask.rows)).clone();
 
@@ -40,63 +36,30 @@ bool PathFollower::process(const cv::Mat& seg_mask, SharedContext* ctx) {
     std::vector<cv::Point2f> centers;
     onCenterline(mask, centers, ctx);
 
-    // ---- 3.5 全局坐标系更新 ----
-    // centers 在裁切坐标系，转为宽鸟瞰坐标系后再写入 guide_meta
+    // ---- 3.5 全局坐标系更新（供底部面板显示） ----
     {
-        auto now = std::chrono::steady_clock::now();
-        float dt = first_frame_ ? 0.0f
-                   : std::chrono::duration<float>(now - last_tp_).count();
-        last_tp_ = now;
-        if (dt > 0.1f) dt = 0.1f;
-
-        float yaw     = ctx->yaw.load(std::memory_order_acquire);
-        float rel_yaw = (yaw - entry_yaw_) * ctrl.yaw_direction;
-        while (rel_yaw > 180.0f)  rel_yaw -= 360.0f;
-        while (rel_yaw < -180.0f) rel_yaw += 360.0f;
-        float rad = rel_yaw * DEG2RAD;
-
         float birdW  = calib.bird_width * calib.bird_width_scale;
-        float birdH  = static_cast<float>(calib.bird_height);
         float car_cx = birdW * 0.5f;
-        float car_cy = birdH * ctrl.car_cy_ratio;
-
-        float speed = (last_speed_ > 0.01f) ? last_speed_ : 0.0f;
+        float car_cy = static_cast<float>(calib.bird_height) * ctrl.car_cy_ratio;
 
         std::lock_guard<std::mutex> lk(ctx->guide_mtx_);
         auto& meta = ctx->guide_meta_;
-
-        // yaw 驱动车位更新
-        if (dt > 0.0f) {
-            float dist = speed * dt;
-            meta.car_pt.x += dist * calib.ppm_x * std::sin(rad);
-            meta.car_pt.y -= dist * calib.ppm_y * std::cos(rad);
-        }
-        meta.car_yaw = rel_yaw;
+        meta.origin  = {car_cx, car_cy};
+        meta.car_pt  = {car_cx, car_cy};
+        meta.car_yaw = 0.0f;
 
         if (!centers.empty()) {
-            // 赛道可见 → 重置坐标系
-            meta.origin = {car_cx, car_cy};
-            meta.e_pt   = {centers[0].x + static_cast<float>(offset_x),
-                           centers[0].y};
-            meta.car_pt = {car_cx, car_cy};
-            meta.blind  = false;
-            entry_yaw_  = yaw;  // 刷新 yaw 基准
+            meta.e_pt  = {centers[0].x + static_cast<float>(offset_x),
+                          centers[0].y};
+            meta.blind = false;
         } else {
-            // 盲开 → 冻结 origin + e_pt，只更新 car_pt
             meta.blind = true;
         }
     }
 
     // ---- 4. 丢线容错（可重写） ----
     if (centers.empty()) {
-        cv::Point2f e_pt;
-        float yaw_rad;
-        {
-            std::lock_guard<std::mutex> lk(ctx->guide_mtx_);
-            e_pt    = ctx->guide_meta_.e_pt;
-            yaw_rad = ctx->guide_meta_.car_yaw * DEG2RAD;
-        }
-        onLost(e_pt, yaw_rad, ctx);
+        onLost(ctx);
         return true;
     }
     lost_frames_ = 0;
@@ -167,47 +130,28 @@ bool PathFollower::onPurePursuit(const cv::Mat& mask,
     return true;
 }
 
-void PathFollower::onLost(const cv::Point2f& e_pt, float yaw_rad,
-                           SharedContext* ctx) {
-    const auto& ctrl  = ctx->config.control;
-    const auto& sp    = ctrl.scene.at(ctx->scene_manager.currentName());
-    const auto& calib = ctx->config.calib;
+void PathFollower::onLost(SharedContext* ctx) {
+    const auto& ctrl = ctx->config.control;
+    const auto& sp   = ctrl.scene.at(ctx->scene_manager.currentName());
+    lost_frames_++;
 
-    // 读当前车坐标
-    cv::Point2f car_pt;
-    {
-        std::lock_guard<std::mutex> lk(ctx->guide_mtx_);
-        car_pt = ctx->guide_meta_.car_pt;
+    if (lost_frames_ > ctrl.max_lost_frames) {
+        std::cerr << "[PathFollower] 赛道彻底丢失，执行停车保护" << std::endl;
+        ctx->stop.store(true, std::memory_order_release);
+        return;
     }
 
-    // 纯跟踪锁冻结 E 点 + yaw 补偿
-    float error = pathplan::headingError(car_pt.x, car_pt.y,
-                                          e_pt.x, e_pt.y,
-                                          ctrl.car_length, calib.ppm_x, calib.ppm_y)
-                * ctx->steering_dir
-                - yaw_rad;
+    std::cerr << "[PathFollower] 赛道闪烁丢失，盲开中... "
+              << lost_frames_ << "/" << ctrl.max_lost_frames << std::endl;
 
-    // PD + 速度（正常，不衰减）
-    float derivative = first_frame_ ? 0.0f : (error - last_error_);
-    last_error_ = error;
-
-    float pwm = ctrl.pwm_mid
-              - (sp.pid_p * error + sp.pid_d * derivative) * ctrl.pwm_k;
+    float sign = (last_error_ > 0.0f) ? 1.0f : -1.0f;
+    float step = ctrl.coast_steer_step * lost_frames_ / ctrl.max_lost_frames;
+    float pwm = last_pwm_ - sign * step;
     pwm = std::clamp(pwm, ctrl.pwm_min, ctrl.pwm_max);
     last_pwm_ = pwm;
-
-    float target_spd = sp.max_speed;
-    float ae = std::abs(error);
-    if (ae > ctrl.steer_speed_threshold) {
-        float excess = ae - ctrl.steer_speed_threshold;
-        target_spd = sp.max_speed / (1.0f + ctrl.steer_speed_k * excess);
-    }
-    if (target_spd < last_speed_) last_speed_ = target_spd;
-    else last_speed_ += (target_spd - last_speed_) * sp.speed_recovery_k;
-
     ctx->steering_pwm.store(pwm);
+    last_speed_ *= sp.coast_speed_decay;
     ctx->target_speed.store(last_speed_);
-    ctx->last_error.store(last_error_, std::memory_order_release);
 }
 
 float PathFollower::onPD(float error, SharedContext* ctx) {
