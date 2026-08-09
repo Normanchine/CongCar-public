@@ -89,6 +89,12 @@ struct SharedContext {
     // -1=沿左边界 0=未锁存(沿中线) +1=沿右边界
     std::atomic<int> car_edge{0};
 
+    // ---- CarScene 障碍鸟瞰点（CarScene写，DisplayTask读，鸟瞰图画点） ----
+    // car_obs_pt：障碍框底边中点的宽鸟瞰坐标；car_obs_valid：本帧是否有检测
+    std::mutex    car_obs_mtx_;
+    cv::Point2f   car_obs_pt_{0, 0};
+    bool          car_obs_valid_ = false;
+
     // ---- UART直发（场景紧急停车可绕过ControlTask下发循环） ----
     UartIO* uart_io = nullptr;
 

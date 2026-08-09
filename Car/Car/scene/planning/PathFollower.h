@@ -52,8 +52,16 @@ protected:
     bool  first_frame_ = true;
     pathplan::ForkState fork_state_;  // 岔路持久化状态（场景切换自动重置）
 
-    // 巡线裁切宽度倍数（默认1=裁bird_width中心区；CarScene设bird_width_scale=全宽鸟瞰）
-    // 宽鸟瞰巡线：沿边界走时远处赛道边界不脱离视野，避免丢线
-    float crop_scale_ = 1.0f;
+    // 沿边巡线方向：-1=左边界 +1=右边界 0=中点（默认左边界）
+    // onCenterline 默认用 extractBoundary 取该侧边界点
+    int follow_edge_ = -1;
+
+    // 车底中心参考点横向偏移平滑（NormalScene 从画面中心平滑移到目标）
+    float cur_cx_ratio_   = 0.0f;   // 当前平滑后的偏移（相对画面中心）
+    int   cx_smooth_left_ = 0;      // 剩余平滑帧数
+
+public:
+    // 子类设置沿边方向
+    void setFollowEdge(int edge) { follow_edge_ = edge; }
 
 };

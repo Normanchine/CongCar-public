@@ -4,24 +4,17 @@
 #include <string>
 #include <vector>
 
-// TrafficSignScene 右转子配置（嵌套在 SceneControlParams::right）
-struct TurnControlParams {
-    float max_speed = 0.55f;
-    float pid_p     = 0.9f;
-    float pid_d     = 0.7f;
-};
-
+// 场景行为参数：每场景各有（贴边偏移量 / 前视上限 / cx平滑）
 struct SceneControlParams {
-    float max_speed = 1.0f;
-    float pid_p     = 0.0f;
-    float pid_d     = 0.0f;
-    float aim_dist_near    = 0.35f;  // 近前视距离 (m)
-    float coast_speed_decay = 0.9f;  // 盲开速度衰减系数
-    float speed_recovery_k  = 0.3f;  // 加速恢复系数
+    // 沿边参考点横向偏移（鸟瞰宽比例，默认0=压线）
+    // 贴边界内侧：左边界→偏右(cx增大)；右边界→偏左(cx减小)
+    float lateral_offset_ratio = 0.0f;
 
-    // TrafficSignScene 右转专属参数
-    TurnControlParams right;
+    // 前视点最大距离 (m)，0=不限制。CarScene 沿边界走时限制前视，避免远处误差放大
+    float aim_dist_max = 0.0f;
 
+    // 车底中心参考点平滑到位帧数，0=不平滑（直接硬切）。NormalScene 从画面中心平滑移到目标
+    float cx_smooth_frames = 0.0f;
 };
 
 struct ForkConfig {
@@ -32,6 +25,11 @@ struct ForkConfig {
 };
 
 struct ControlConfig {
+    // ---- 全局控制参数（所有场景统一，切换场景无参数跳变） ----
+    float max_speed = 1.0f;            // 目标速度 (m/s)
+    float pid_p     = 0.0f;            // P 系数
+    float pid_d     = 0.0f;            // D 系数
+
     // ---- 物理参数 ----
     float car_length    = 0.316f;      // 轴距 (m)
     float car_cy_ratio  = 0.95f;       // 车底中心 y = 车高 * ratio
@@ -58,7 +56,7 @@ struct ControlConfig {
     // ---- 岔路策略 ----
     ForkConfig fork;
 
-    // ---- 场景参数 ----
+    // ---- 场景参数（lateral_offset_ratio 每场景各有） ----
     std::map<std::string, SceneControlParams> scene;
 };
 

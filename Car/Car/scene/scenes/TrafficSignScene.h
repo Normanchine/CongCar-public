@@ -31,14 +31,14 @@ private:
     // 阶段3：按 VLM 决策执行巡线
     void handleDrive(SharedContext* ctx, const cv::Mat& seg_mask);
 
-    // 重写 onFork/onPD/onSpeed：按 fork_side 选岔路方向 + 直走/右转两套参数
+    // 重写 onCenterline/onFork：按 fork_side 选边界方向（PD/速度用基类全局参数）
     class Follower : public PathFollower {
     public:
         int fork_side = 0;  // 0=直走, 1=右转
     protected:
+        void  onCenterline(const cv::Mat& mask, std::vector<cv::Point2f>& centers,
+                           SharedContext* ctx) override;
         void  onFork(cv::Mat& wide_mask, SharedContext* ctx) override;
-        float onPD(float error, SharedContext* ctx) override;
-        float onSpeed(float error, SharedContext* ctx) override;
     };
 
     Follower follower_;

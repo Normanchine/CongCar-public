@@ -9,49 +9,25 @@
 #include <sys/stat.h>
 #include <thread>
 
-REGISTER_SCENE(TrafficSignScene)
+//REGISTER_SCENE(TrafficSignScene)
 
 // ============================================================================
 // Follower 子类方法
 // ============================================================================
+
+void TrafficSignScene::Follower::onCenterline(const cv::Mat& mask,
+                                              std::vector<cv::Point2f>& centers,
+                                              SharedContext* /*ctx*/) {
+    // 直走(0)→沿左边界(-1)；右转(1)→沿右边界(+1)
+    pathplan::extractBoundary(mask, centers, (fork_side == 1) ? 1 : -1);
+    pathplan::smoothCenterline(centers);
+}
 
 void TrafficSignScene::Follower::onFork(cv::Mat& wide_mask, SharedContext* ctx) {
     const auto& fk = ctx->config.control.fork;
     pathplan::handleFork(wide_mask, fork_state_,
                          fork_side, fk.confirm_rows,
                          fk.persist_frames, fk.width_threshold, 1);
-}
-
-float TrafficSignScene::Follower::onPD(float error, SharedContext* ctx) {
-    const auto& ctrl = ctx->config.control;
-    const auto& sp   = ctrl.scene.at("TrafficSignScene");
-    float pp = (fork_side == 1) ? sp.right.pid_p : sp.pid_p;
-    float pd = (fork_side == 1) ? sp.right.pid_d : sp.pid_d;
-
-    float derivative = first_frame_ ? 0.0f : (error - last_error_);
-    last_error_ = error;
-
-    float output = pp * error + pd * derivative;
-    float pwm = ctrl.pwm_mid - output * ctrl.pwm_k;
-    return std::clamp(pwm, ctrl.pwm_min, ctrl.pwm_max);
-}
-
-float TrafficSignScene::Follower::onSpeed(float error, SharedContext* ctx) {
-    const auto& ctrl = ctx->config.control;
-    const auto& sp   = ctrl.scene.at("TrafficSignScene");
-    float ms = (fork_side == 1) ? sp.right.max_speed : sp.max_speed;
-
-    float target = ms;
-    float ae = std::abs(error);
-    if (ae > ctrl.steer_speed_threshold) {
-        float excess = ae - ctrl.steer_speed_threshold;
-        target = ms / (1.0f + ctrl.steer_speed_k * excess);
-    }
-
-    if (target < last_speed_) {
-        return target;
-    }
-    return last_speed_ + (target - last_speed_) * sp.speed_recovery_k;
 }
 
 // ============================================================================
@@ -221,16 +197,9 @@ void TrafficSignScene::handleWaitVlm(SharedContext* ctx) {
 // ============================================================================
 
 void TrafficSignScene::handleDrive(SharedContext* ctx, const cv::Mat& seg_mask) {
+    // 全程宽鸟瞰由 PathFollower 内部统一处理，无需临时改 bird_width
     follower_.fork_side = cached_fork_side_;
-
-    // 右转时临时扩大 bird_width，确保右侧岔路在中线提取时可见
-    auto saved_bw = ctx->config.calib.bird_width;
-    if (cached_fork_side_ == 1) {
-        ctx->config.calib.bird_width =
-            static_cast<int>(saved_bw * ctx->config.calib.bird_width_scale);
-    }
     follower_.process(seg_mask, ctx);
-    ctx->config.calib.bird_width = saved_bw;
 }
 
 // ============================================================================

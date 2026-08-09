@@ -18,13 +18,11 @@ bool PathFollower::process(const cv::Mat& seg_mask, SharedContext* ctx) {
     // ---- 0. 宽鸟瞰变换 ----
     cv::Mat wide_mask = ctx->perspective.warp(seg_mask);
 
-    // ---- 1. 岔路处理（可重写） ----
-    onFork(wide_mask, ctx);
+    // 岔路切除（handleFork）算法保留但不启用：沿边界巡线天然跟随边界，
+    // 不再需要 mask 级岔路切除。如需启用，恢复 onFork(wide_mask, ctx) 调用。
 
-    // ---- 2. 裁中心区域供路径规划（crop_scale_>1 时用更宽视野） ----
-    int crop_w = static_cast<int>(calib.bird_width * crop_scale_);
-    int offset_x = (wide_mask.cols - crop_w) / 2;
-    cv::Mat mask = wide_mask(cv::Rect(offset_x, 0, crop_w, wide_mask.rows)).clone();
+    // ---- 1. 全程宽鸟瞰巡线（不再裁中心区，边界提取需要宽视野） ----
+    cv::Mat mask = wide_mask;
 
     if (ctx->config.debug_mode) {
         std::lock_guard<std::mutex> lk(ctx->bird_mtx_);
@@ -32,7 +30,7 @@ bool PathFollower::process(const cv::Mat& seg_mask, SharedContext* ctx) {
         ctx->bird_valid_ = true;
     }
 
-    // ---- 3. 中线提取（可重写） ----
+    // ---- 3. 边界提取（可重写） ----
     std::vector<cv::Point2f> centers;
     onCenterline(mask, centers, ctx);
 
@@ -49,8 +47,7 @@ bool PathFollower::process(const cv::Mat& seg_mask, SharedContext* ctx) {
         meta.car_yaw = 0.0f;
 
         if (!centers.empty()) {
-            meta.e_pt  = {centers[0].x + static_cast<float>(offset_x),
-                          centers[0].y};
+            meta.e_pt  = {centers[0].x, centers[0].y};
             meta.blind = false;
         } else {
             meta.blind = true;
@@ -104,7 +101,8 @@ void PathFollower::onFork(cv::Mat& wide_mask, SharedContext* ctx) {
 void PathFollower::onCenterline(const cv::Mat& mask,
                                  std::vector<cv::Point2f>& centers,
                                  SharedContext* /*ctx*/) {
-    pathplan::extractCenterline(mask, centers);
+    // 沿边巡线：默认取左边界（follow_edge_），CarScene 可切右边界
+    pathplan::extractBoundary(mask, centers, follow_edge_);
     pathplan::smoothCenterline(centers);
 }
 
@@ -118,9 +116,27 @@ bool PathFollower::onPurePursuit(const cv::Mat& mask,
     const auto& calib = ctx->config.calib;
 
     int w = mask.cols, h = mask.rows;
-    float cx = w * 0.5f, cy = h * ctrl.car_cy_ratio;
-    float cur_spd = (last_speed_ > 0.01f) ? last_speed_ : sp.max_speed;
-    float aim_dist = sp.aim_dist_near + cur_spd * ctrl.lookahead_speed_k;
+    // 车底中心参考点目标：画面中心 - 沿边方向×横向偏移比例（贴边界内侧）
+    // 左边界(-1)→偏右(cx增大)；右边界(+1)→偏左(cx减小)
+    float target_cx_ratio = -follow_edge_ * sp.lateral_offset_ratio;
+
+    // cx 平滑：NormalScene(cx_smooth_frames>0) 从画面中心/当前值线性平滑到目标；其他场景硬切
+    if (sp.cx_smooth_frames > 0.0f && std::abs(target_cx_ratio - cur_cx_ratio_) > 1e-5f) {
+        if (cx_smooth_left_ <= 0) cx_smooth_left_ = static_cast<int>(sp.cx_smooth_frames);
+        cur_cx_ratio_ += (target_cx_ratio - cur_cx_ratio_) / cx_smooth_left_;
+        cx_smooth_left_--;
+    } else {
+        cur_cx_ratio_ = target_cx_ratio;
+    }
+
+    float cx = w * (0.5f + cur_cx_ratio_);
+    float cy = h * ctrl.car_cy_ratio;
+    float cur_spd = (last_speed_ > 0.01f) ? last_speed_ : ctrl.max_speed;
+    // 平滑期间前视也用当前速度下的动态前视（最远），参考点移动时保持远前视稳定
+    float aim_dist = ctrl.aim_dist_near + cur_spd * ctrl.lookahead_speed_k;
+    // 前视点上限（场景专属，CarScene 限制前视避免远处误差放大；0=不限制）
+    if (sp.aim_dist_max > 0.0f && aim_dist > sp.aim_dist_max)
+        aim_dist = sp.aim_dist_max;
     if (!pathplan::findLookAhead(centers, cx, cy, aim_dist, calib.ppm_x, calib.ppm_y, aim_pt))
         return false;
 
@@ -132,7 +148,6 @@ bool PathFollower::onPurePursuit(const cv::Mat& mask,
 
 void PathFollower::onLost(SharedContext* ctx) {
     const auto& ctrl = ctx->config.control;
-    const auto& sp   = ctrl.scene.at(ctx->scene_manager.currentName());
     lost_frames_++;
 
     if (lost_frames_ > ctrl.max_lost_frames) {
@@ -150,36 +165,34 @@ void PathFollower::onLost(SharedContext* ctx) {
     pwm = std::clamp(pwm, ctrl.pwm_min, ctrl.pwm_max);
     last_pwm_ = pwm;
     ctx->steering_pwm.store(pwm);
-    last_speed_ *= sp.coast_speed_decay;
+    last_speed_ *= ctrl.coast_speed_decay;
     ctx->target_speed.store(last_speed_);
 }
 
 float PathFollower::onPD(float error, SharedContext* ctx) {
     const auto& ctrl = ctx->config.control;
-    const auto& sp   = ctrl.scene.at(ctx->scene_manager.currentName());
 
     float derivative = first_frame_ ? 0.0f : (error - last_error_);
     last_error_ = error;
 
-    float output = sp.pid_p * error + sp.pid_d * derivative;
+    float output = ctrl.pid_p * error + ctrl.pid_d * derivative;
     float pwm = ctrl.pwm_mid - output * ctrl.pwm_k;
     return std::clamp(pwm, ctrl.pwm_min, ctrl.pwm_max);
 }
 
 float PathFollower::onSpeed(float error, SharedContext* ctx) {
     const auto& ctrl = ctx->config.control;
-    const auto& sp   = ctrl.scene.at(ctx->scene_manager.currentName());
 
-    float target = sp.max_speed;
+    float target = ctrl.max_speed;
     float ae = std::abs(error);
     if (ae > ctrl.steer_speed_threshold) {
         float excess = ae - ctrl.steer_speed_threshold;
-        target = sp.max_speed / (1.0f + ctrl.steer_speed_k * excess);
+        target = ctrl.max_speed / (1.0f + ctrl.steer_speed_k * excess);
     }
 
     // 减速立即生效，加速平滑恢复
     if (target < last_speed_) {
         return target;
     }
-    return last_speed_ + (target - last_speed_) * sp.speed_recovery_k;
+    return last_speed_ + (target - last_speed_) * ctrl.speed_recovery_k;
 }

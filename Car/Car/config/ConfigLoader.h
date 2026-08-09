@@ -7,44 +7,20 @@
 
 using json = nlohmann::json;
 
-// ---- TurnControlParams 序列化 ----
-
-inline void to_json(json& j, const TurnControlParams& t) {
-    j = json{
-        {"max_speed", t.max_speed},
-        {"pid_p",     t.pid_p},
-        {"pid_d",     t.pid_d},
-    };
-}
-
-inline void from_json(const json& j, TurnControlParams& t) {
-    if (j.contains("max_speed")) j.at("max_speed").get_to(t.max_speed);
-    if (j.contains("pid_p"))     j.at("pid_p").get_to(t.pid_p);
-    if (j.contains("pid_d"))     j.at("pid_d").get_to(t.pid_d);
-}
-
-// ---- SceneControlParams 序列化 ----
+// ---- SceneControlParams 序列化（行为差异字段每场景各有） ----
 
 inline void to_json(json& j, const SceneControlParams& s) {
     j = json{
-        {"max_speed", s.max_speed},
-        {"pid_p", s.pid_p},
-        {"pid_d", s.pid_d},
-        {"aim_dist_near", s.aim_dist_near},
-        {"coast_speed_decay", s.coast_speed_decay},
-        {"speed_recovery_k", s.speed_recovery_k},
-        {"right", s.right},
+        {"lateral_offset_ratio", s.lateral_offset_ratio},
+        {"aim_dist_max", s.aim_dist_max},
+        {"cx_smooth_frames", s.cx_smooth_frames},
     };
 }
 
 inline void from_json(const json& j, SceneControlParams& s) {
-    j.at("max_speed").get_to(s.max_speed);
-    j.at("pid_p").get_to(s.pid_p);
-    j.at("pid_d").get_to(s.pid_d);
-    if (j.contains("aim_dist_near"))    j.at("aim_dist_near").get_to(s.aim_dist_near);
-    if (j.contains("coast_speed_decay")) j.at("coast_speed_decay").get_to(s.coast_speed_decay);
-    if (j.contains("speed_recovery_k"))  j.at("speed_recovery_k").get_to(s.speed_recovery_k);
-    if (j.contains("right")) j.at("right").get_to(s.right);
+    if (j.contains("lateral_offset_ratio")) j.at("lateral_offset_ratio").get_to(s.lateral_offset_ratio);
+    if (j.contains("aim_dist_max")) j.at("aim_dist_max").get_to(s.aim_dist_max);
+    if (j.contains("cx_smooth_frames")) j.at("cx_smooth_frames").get_to(s.cx_smooth_frames);
 }
 
 // ---- ForkConfig 序列化 ----
@@ -69,6 +45,9 @@ inline void from_json(const json& j, ForkConfig& f) {
 
 inline void to_json(json& j, const ControlConfig& c) {
     j = json{
+        {"max_speed",           c.max_speed},
+        {"pid_p",               c.pid_p},
+        {"pid_d",               c.pid_d},
         {"car_length",          c.car_length},
         {"car_cy_ratio",        c.car_cy_ratio},
         {"aim_dist_near",       c.aim_dist_near},
@@ -90,6 +69,9 @@ inline void to_json(json& j, const ControlConfig& c) {
 }
 
 inline void from_json(const json& j, ControlConfig& c) {
+    if (j.contains("max_speed")) j.at("max_speed").get_to(c.max_speed);
+    if (j.contains("pid_p"))     j.at("pid_p").get_to(c.pid_p);
+    if (j.contains("pid_d"))     j.at("pid_d").get_to(c.pid_d);
     j.at("car_length").get_to(c.car_length);
     j.at("car_cy_ratio").get_to(c.car_cy_ratio);
     if (j.contains("aim_dist_near"))    j.at("aim_dist_near").get_to(c.aim_dist_near);

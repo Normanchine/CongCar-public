@@ -14,53 +14,46 @@ void CarScene::run(SharedContext* ctx) {
     auto seg = ctx->seg_result.get();
     if (!seg || seg->mask.empty()) return;
 
-    // 宽鸟瞰巡线：沿边界走时远处边界不脱离视野
-    follower_.setCropScale(ctx->config.calib.bird_width_scale);
-
-    // ---- 首次进入：锁存沿边方向（只一次） ----
-    if (!edge_locked_) {
+    // ---- 每帧：找 car 框 → 写障碍鸟瞰点（供 DisplayTask 画点） ----
+    if (car_class_id_ < 0) {
+        const auto& classes = ctx->config.ai.detection.classes;
+        for (int i = 0; i < static_cast<int>(classes.size()); ++i) {
+            if (classes[i] == "car") { car_class_id_ = i; break; }
+        }
         if (car_class_id_ < 0) {
-            const auto& classes = ctx->config.ai.detection.classes;
-            for (int i = 0; i < static_cast<int>(classes.size()); ++i) {
-                if (classes[i] == "car") { car_class_id_ = i; break; }
-            }
-            if (car_class_id_ < 0) {
-                std::cerr << "[CarScene] 未找到 car 类别！" << std::endl;
-                return;
-            }
+            std::cerr << "[CarScene] 未找到 car 类别！" << std::endl;
+            return;
         }
-
-        DetectionBox box;
-        if (findCarBox(ctx, box)) {
-            cv::Point2f obs = boxToBird(box, ctx);
-            const auto& calib = ctx->config.calib;
-            float wide_w = static_cast<float>(calib.bird_width) * calib.bird_width_scale;
-
-            // 障碍在中线左 → 沿右边界(+1)；障碍在中线右 → 沿左边界(-1)
-            follower_.edge = (obs.x < wide_w * 0.5f) ? 1 : -1;
-            edge_locked_   = true;
-
-            ctx->car_edge.store(follower_.edge, std::memory_order_release);
-            std::cout << "[CarScene] 沿" << (follower_.edge > 0 ? "右" : "左")
-                      << "边界巡线 (障碍x=" << obs.x << ", 中线=" << wide_w * 0.5f << ")"
-                      << std::endl;
-        }
-        // 未锁存前沿中线（edge=0），DetTask 检测到 car 后会重新切入
     }
 
-    // ---- 沿指定边界巡线 ----
-    follower_.process(seg_mask, ctx);
-}
+    DetectionBox box;
+    if (findCarBox(ctx, box)) {
+        cv::Point2f obs = boxToBird(box, ctx);
 
-// ============================================================================
-// Follower：onCenterline 沿指定边界提取（不取中点）
-// ============================================================================
+        // 写共享障碍点（宽鸟瞰坐标）
+        {
+            std::lock_guard<std::mutex> lk(ctx->car_obs_mtx_);
+            ctx->car_obs_pt_    = obs;
+            ctx->car_obs_valid_ = true;
+        }
 
-void CarScene::Follower::onCenterline(const cv::Mat& mask,
-                                      std::vector<cv::Point2f>& centers,
-                                      SharedContext* /*ctx*/) {
-    pathplan::extractBoundary(mask, centers, edge);
-    pathplan::smoothCenterline(centers);
+        // ---- 实时检测：每帧判断车在赛道哪边 + 切换边界 ----
+        // 赛道中心基准：在障碍 y 处插值出赛道中线 x（不是画面中心！）
+        float track_center_x = trackCenterXAt(seg->mask, obs.y, ctx);
+
+        // 障碍在中线左 → 沿右边界(+1)；障碍在中线右 → 沿左边界(-1)
+        int edge = (obs.x < track_center_x) ? 1 : -1;
+        follower_.setFollowEdge(edge);
+
+        ctx->car_edge.store(edge, std::memory_order_release);
+    } else {
+        // 本帧无 car 框：清掉障碍点标记
+        std::lock_guard<std::mutex> lk(ctx->car_obs_mtx_);
+        ctx->car_obs_valid_ = false;
+    }
+
+    // ---- 沿指定边界巡线（全程宽鸟瞰） ----
+    follower_.process(seg->mask, ctx);
 }
 
 // ============================================================================
@@ -96,4 +89,32 @@ cv::Point2f CarScene::boxToBird(const DetectionBox& box, SharedContext* ctx) {
         img_y -= static_cast<float>(crop.y);
     }
     return ctx->perspective.toBird(cv::Point2f(img_x, img_y));
+}
+
+// 宽鸟瞰赛道中线在 bird_y 处的 x（插值）；中线为空用宽鸟瞰中心兜底
+float CarScene::trackCenterXAt(const cv::Mat& seg_mask, float bird_y, SharedContext* ctx) {
+    cv::Mat wide_mask = ctx->perspective.warp(seg_mask);
+    std::vector<cv::Point2f> centers;
+    pathplan::extractCenterline(wide_mask, centers);   // 取中点=赛道中线
+    if (centers.empty()) return static_cast<float>(wide_mask.cols) * 0.5f;
+    pathplan::smoothCenterline(centers);
+
+    // 按 y 插值 x（centers 从远到近，Y 递增）
+    for (size_t i = 0; i + 1 < centers.size(); ++i) {
+        float y1 = centers[i].y;
+        float y2 = centers[i + 1].y;
+        if ((bird_y <= y1 && bird_y >= y2) || (bird_y >= y1 && bird_y <= y2)) {
+            if (std::abs(y2 - y1) < 1e-4f) return centers[i].x;
+            float t = (bird_y - y1) / (y2 - y1);
+            return centers[i].x + t * (centers[i + 1].x - centers[i].x);
+        }
+    }
+
+    // 兜底：最近点
+    float best_d = 1e9f, best_x = static_cast<float>(wide_mask.cols) * 0.5f;
+    for (const auto& p : centers) {
+        float d = std::abs(p.y - bird_y);
+        if (d < best_d) { best_d = d; best_x = p.x; }
+    }
+    return best_x;
 }

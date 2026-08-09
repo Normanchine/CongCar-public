@@ -83,14 +83,30 @@ void drawDetections(cv::Mat& frame, const DetResult& det, const DetectionConfig&
     }
 }
 
-// ---- 绘制鸟瞰图（中线 + 前视点 + 车底中心） ----
+// ---- 绘制鸟瞰图（边界/中线 + 前视点 + 车底中心 + 障碍点 + 中心分界红线） ----
 // 注意：调用者需持有 bird_mtx_ 锁
 void drawBirdView(cv::Mat& bird_vis, const std::vector<cv::Point2f>& centers,
                   const cv::Point2f& aim_pt, float car_cy_ratio,
-                  float car_center_x_offset_ratio) {
+                  float car_center_x_offset_ratio,
+                  const cv::Point2f* obs_pt) {
+    int w = bird_vis.cols, h = bird_vis.rows;
+
+    // 中心分界红线（区分左右两侧，空赛道也画）
+    int mid_x = w / 2;
+    cv::line(bird_vis, cv::Point(mid_x, 0), cv::Point(mid_x, h - 1),
+             cv::Scalar(0, 0, 255), 1);
+
+    // 绘制障碍点（橙色十字，CarScene 检测到 car 时画）
+    if (obs_pt) {
+        int ox = static_cast<int>(obs_pt->x);
+        int oy = static_cast<int>(obs_pt->y);
+        cv::line(bird_vis, cv::Point(ox - 6, oy), cv::Point(ox + 6, oy), cv::Scalar(0, 165, 255), 2);
+        cv::line(bird_vis, cv::Point(ox, oy - 6), cv::Point(ox, oy + 6), cv::Scalar(0, 165, 255), 2);
+        cv::circle(bird_vis, cv::Point(ox, oy), 4, cv::Scalar(0, 165, 255), -1);
+    }
+
     if (centers.empty()) return;
 
-    int w = bird_vis.cols, h = bird_vis.rows;
     float cx = w * (0.5f + car_center_x_offset_ratio);
     float cy = h * car_cy_ratio;
 
@@ -222,8 +238,23 @@ void DisplayTask::run() {
                     int bird_h = ctx_->bird_mask_.rows;
                     bird_color = cv::Mat(bird_h, bird_w, CV_8UC3, kBirdBg);
                     bird_color.setTo(kBirdTrack, ctx_->bird_mask_);
+                    // 车底中心蓝点画到参考点位置：画面中心 - 沿边方向×偏移比例（贴边界内侧）
+                    // car_edge 默认 -1（左边界），CarScene 由首帧锁存
+                    const auto& sp = ctx_->config.control.scene.at(ctx_->scene_manager.currentName());
+                    int cedge = ctx_->car_edge.load(std::memory_order_acquire);
+                    if (cedge == 0) cedge = -1;   // 未锁存→默认左边界
+                    float off_ratio = -cedge * sp.lateral_offset_ratio;
+
+                    // 障碍点（CarScene 检测到 car 时画）
+                    cv::Point2f obs_pt;
+                    bool has_obs = false;
+                    {
+                        std::lock_guard<std::mutex> lk(ctx_->car_obs_mtx_);
+                        if (ctx_->car_obs_valid_) { obs_pt = ctx_->car_obs_pt_; has_obs = true; }
+                    }
                     drawBirdView(bird_color, ctx_->bird_centers_, ctx_->bird_aim_pt_,
-                                 ctx_->config.control.car_cy_ratio, 0.0f);
+                                 ctx_->config.control.car_cy_ratio, off_ratio,
+                                 has_obs ? &obs_pt : nullptr);
                 } else {
                     bird_color = cv::Mat(ctx_->config.calib.bird_height,
                                          ctx_->config.calib.bird_width,
