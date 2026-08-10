@@ -89,6 +89,11 @@ struct SharedContext {
     // -1=沿左边界 0=未锁存(沿中线) +1=沿右边界
     std::atomic<int> car_edge{0};
 
+    // ---- 当前巡线参考点横向偏移比例（PathFollower写，DisplayTask读，画蓝点） ----
+    // 控制器每帧的 cur_cx_ratio_（含 cx_smooth 平滑值），跨场景一致。
+    // 不能用 car_edge 代替：CarScene→Normal 切换后 car_edge 残留会导致偏移方向错。
+    std::atomic<float> ref_ratio{0.0f};
+
     // ---- CarScene 障碍鸟瞰点（CarScene写，DisplayTask读，鸟瞰图画点） ----
     // car_obs_pt：障碍框底边中点的宽鸟瞰坐标；car_obs_valid：本帧是否有检测
     std::mutex    car_obs_mtx_;

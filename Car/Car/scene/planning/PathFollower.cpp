@@ -67,6 +67,9 @@ bool PathFollower::process(const cv::Mat& seg_mask, SharedContext* ctx) {
     if (!onPurePursuit(mask, centers, error, aim_pt, ctx))
         return true;
 
+    // 同步当前参考点偏移比例给显示（蓝点 = 控制器实际瞄准位置，含平滑值）
+    ctx->ref_ratio.store(cur_cx_ratio_, std::memory_order_release);
+
     // ---- 6. PD + PWM（可重写） ----
     float pwm = onPD(error, ctx);
     last_pwm_ = pwm;

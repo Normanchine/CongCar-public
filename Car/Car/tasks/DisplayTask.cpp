@@ -238,12 +238,9 @@ void DisplayTask::run() {
                     int bird_h = ctx_->bird_mask_.rows;
                     bird_color = cv::Mat(bird_h, bird_w, CV_8UC3, kBirdBg);
                     bird_color.setTo(kBirdTrack, ctx_->bird_mask_);
-                    // 车底中心蓝点画到参考点位置：画面中心 - 沿边方向×偏移比例（贴边界内侧）
-                    // car_edge 默认 -1（左边界），CarScene 由首帧锁存
-                    const auto& sp = ctx_->config.control.scene.at(ctx_->scene_manager.currentName());
-                    int cedge = ctx_->car_edge.load(std::memory_order_acquire);
-                    if (cedge == 0) cedge = -1;   // 未锁存→默认左边界
-                    float off_ratio = -cedge * sp.lateral_offset_ratio;
+                    // 车底中心蓝点画到控制器当前参考点位置（含 cx 平滑值）
+                    // 不用 car_edge：CarScene→Normal 切换后 car_edge 残留会导致偏移方向错
+                    float off_ratio = ctx_->ref_ratio.load(std::memory_order_acquire);
 
                     // 障碍点（CarScene 检测到 car 时画）
                     cv::Point2f obs_pt;
