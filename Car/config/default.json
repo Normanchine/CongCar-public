@@ -18,9 +18,9 @@
     "steer_speed_threshold": 0.15,
     "steer_speed_k": 1.5,
     "lookahead_speed_k": 0.15,
-    "max_lost_frames": 30,
-    "coast_steer_step": 200.0,
-    "coast_speed_decay": 0.9,
+    "max_lost_frames": 100,
+    "coast_steer_step": 500.0,
+    "coast_speed": 0.5,
     "speed_recovery_k": 0.01,
     "fork": {
       "keep_side": 0,
@@ -31,7 +31,8 @@
     "scene": {
       "NormalScene": { "lateral_offset_ratio": 0.15, "cx_smooth_frames": 100 },
       "TrafficSignScene": { "lateral_offset_ratio": 0.15 },
-      "CarScene": { "lateral_offset_ratio": 0.1, "aim_dist_max": 0.10 }
+      "CarScene": { "lateral_offset_ratio": 0.1, "aim_dist_max": 0.10 },
+      "PersonScene": { "lateral_offset_ratio": 0.15, "person_stop_ratio": 0.5 }
     }
   },
 
@@ -47,11 +48,11 @@
       "input_h": 256,
       "confidence_threshold": 0.40,
       "nms_threshold": 0.65,
-      "lost_frame_limit": 100,
+      "lost_frame_limit": 40,
       "class_num": 3,
       "classes": ["sign","person","car"],
       "colors": [[40,220,40],[40,80,255],[255,210,40]],
-      "scene_map": {"sign": "TrafficSignScene", "car": "CarScene"}
+      "scene_map": {"sign": "TrafficSignScene", "person": "PersonScene", "car": "CarScene"}
     },
     "vlm": {
       "api_key": "",

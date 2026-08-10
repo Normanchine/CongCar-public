@@ -168,7 +168,8 @@ void PathFollower::onLost(SharedContext* ctx) {
     pwm = std::clamp(pwm, ctrl.pwm_min, ctrl.pwm_max);
     last_pwm_ = pwm;
     ctx->steering_pwm.store(pwm);
-    last_speed_ *= ctrl.coast_speed_decay;
+    // 盲开固定速度：丢线后保持 coast_speed（不再指数衰减）
+    last_speed_ = ctrl.coast_speed;
     ctx->target_speed.store(last_speed_);
 }
 

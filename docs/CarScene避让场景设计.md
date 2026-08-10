@@ -11,7 +11,7 @@
 | TrafficSignScene | 直走→左边界，右转→右边界（`fork_side` 联动） |
 | CarScene | 障碍在左→**右边界**，障碍在右→**左边界**（首帧锁存） |
 
-**全局统一控制参数**（`ControlConfig`）：`max_speed` / `pid_p` / `pid_d` / `aim_dist_near` / `coast_speed_decay` / `speed_recovery_k`——所有场景一套，**场景切换无参数跳变**。场景只保留行为差异 `lateral_offset_ratio`（贴边偏移）。
+**全局统一控制参数**（`ControlConfig`）：`max_speed` / `pid_p` / `pid_d` / `aim_dist_near` / `coast_speed` / `speed_recovery_k`——所有场景一套，**场景切换无参数跳变**。场景只保留行为差异 `lateral_offset_ratio`（贴边偏移）。
 
 ## 2. 为什么沿边界而不是跟中线
 
@@ -100,11 +100,11 @@ float cx = w * (0.5f - follow_edge_ * sp.lateral_offset_ratio);
 float output = ctrl.pid_p * error + ctrl.pid_d * derivative;
 // onSpeed：目标速度用全局
 float target = ctrl.max_speed;
-// onLost：盲开衰减用全局
-last_speed_ *= ctrl.coast_speed_decay;
+// onLost：盲开固定速度用全局
+last_speed_ = ctrl.coast_speed;
 ```
 
-全局参数：`max_speed` / `pid_p` / `pid_d` / `aim_dist_near` / `coast_speed_decay` / `speed_recovery_k`。场景参数：`lateral_offset_ratio`（`SceneControlParams`）。
+全局参数：`max_speed` / `pid_p` / `pid_d` / `aim_dist_near` / `coast_speed` / `speed_recovery_k`。场景参数：`lateral_offset_ratio`（`SceneControlParams`）。
 
 **为什么**：场景切换时若 PID/速度/前视参数整套变化，即使 `first_frame_` 继承 error/speed，控制系数突变 → PWM 输出跳变 → 顿挫。全局统一后切换只变 `follow_edge_`/`fork_side`/`lateral_offset_ratio`（行为），控制系数不变，平滑过渡。
 

@@ -83,12 +83,13 @@ void drawDetections(cv::Mat& frame, const DetResult& det, const DetectionConfig&
     }
 }
 
-// ---- 绘制鸟瞰图（边界/中线 + 前视点 + 车底中心 + 障碍点 + 中心分界红线） ----
+// ---- 绘制鸟瞰图（边界/中线 + 前视点 + 车底中心 + 障碍十字 + 中心分界红线） ----
 // 注意：调用者需持有 bird_mtx_ 锁
 void drawBirdView(cv::Mat& bird_vis, const std::vector<cv::Point2f>& centers,
                   const cv::Point2f& aim_pt, float car_cy_ratio,
                   float car_center_x_offset_ratio,
-                  const cv::Point2f* obs_pt) {
+                  const cv::Point2f* car_obs_pt,
+                  const cv::Point2f* person_pt) {
     int w = bird_vis.cols, h = bird_vis.rows;
 
     // 中心分界红线（区分左右两侧，空赛道也画）
@@ -96,14 +97,17 @@ void drawBirdView(cv::Mat& bird_vis, const std::vector<cv::Point2f>& centers,
     cv::line(bird_vis, cv::Point(mid_x, 0), cv::Point(mid_x, h - 1),
              cv::Scalar(0, 0, 255), 1);
 
-    // 绘制障碍点（橙色十字，CarScene 检测到 car 时画）
-    if (obs_pt) {
-        int ox = static_cast<int>(obs_pt->x);
-        int oy = static_cast<int>(obs_pt->y);
-        cv::line(bird_vis, cv::Point(ox - 6, oy), cv::Point(ox + 6, oy), cv::Scalar(0, 165, 255), 2);
-        cv::line(bird_vis, cv::Point(ox, oy - 6), cv::Point(ox, oy + 6), cv::Scalar(0, 165, 255), 2);
-        cv::circle(bird_vis, cv::Point(ox, oy), 4, cv::Scalar(0, 165, 255), -1);
-    }
+    // 绘制障碍点十字（CarScene 车=橙色，PersonScene 人=青色）
+    auto draw_cross = [&](const cv::Point2f* pt, const cv::Scalar& color) {
+        if (!pt) return;
+        int ox = static_cast<int>(pt->x);
+        int oy = static_cast<int>(pt->y);
+        cv::line(bird_vis, cv::Point(ox - 6, oy), cv::Point(ox + 6, oy), color, 2);
+        cv::line(bird_vis, cv::Point(ox, oy - 6), cv::Point(ox, oy + 6), color, 2);
+        cv::circle(bird_vis, cv::Point(ox, oy), 4, color, -1);
+    };
+    draw_cross(car_obs_pt, cv::Scalar(0, 165, 255));   // 橙色（车）
+    draw_cross(person_pt, cv::Scalar(255, 255, 0));    // 青色（人）
 
     if (centers.empty()) return;
 
@@ -242,16 +246,21 @@ void DisplayTask::run() {
                     // 不用 car_edge：CarScene→Normal 切换后 car_edge 残留会导致偏移方向错
                     float off_ratio = ctx_->ref_ratio.load(std::memory_order_acquire);
 
-                    // 障碍点（CarScene 检测到 car 时画）
-                    cv::Point2f obs_pt;
-                    bool has_obs = false;
+                    // 障碍点十字（CarScene 车 / PersonScene 人）
+                    cv::Point2f car_pt, person_pt;
+                    bool has_car = false, has_person = false;
                     {
                         std::lock_guard<std::mutex> lk(ctx_->car_obs_mtx_);
-                        if (ctx_->car_obs_valid_) { obs_pt = ctx_->car_obs_pt_; has_obs = true; }
+                        if (ctx_->car_obs_valid_) { car_pt = ctx_->car_obs_pt_; has_car = true; }
+                    }
+                    {
+                        std::lock_guard<std::mutex> lk(ctx_->person_obs_mtx_);
+                        if (ctx_->person_obs_valid_) { person_pt = ctx_->person_obs_pt_; has_person = true; }
                     }
                     drawBirdView(bird_color, ctx_->bird_centers_, ctx_->bird_aim_pt_,
                                  ctx_->config.control.car_cy_ratio, off_ratio,
-                                 has_obs ? &obs_pt : nullptr);
+                                 has_car ? &car_pt : nullptr,
+                                 has_person ? &person_pt : nullptr);
                 } else {
                     bird_color = cv::Mat(ctx_->config.calib.bird_height,
                                          ctx_->config.calib.bird_width,

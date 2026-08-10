@@ -15,6 +15,9 @@ struct SceneControlParams {
 
     // 车底中心参考点平滑到位帧数，0=不平滑（直接硬切）。NormalScene 从画面中心平滑移到目标
     float cx_smooth_frames = 0.0f;
+
+    // PersonScene：行人底部到达鸟瞰图高度的此比例时停车（0~1，默认0.5=鸟瞰图一半高度）
+    float person_stop_ratio = 0.5f;
 };
 
 struct ForkConfig {
@@ -50,7 +53,7 @@ struct ControlConfig {
     // ---- 丢线容错 ----
     int   max_lost_frames   = 5;       // 最大盲开帧数
     float coast_steer_step  = 200.0f;  // 盲开最大搜转偏移量，逐帧递增(PWM)
-    float coast_speed_decay = 0.9f;    // 盲开速度衰减系数（每帧乘以此值）
+    float coast_speed       = 0.5f;    // 盲开固定速度 (m/s)，丢线后按此速度保持
     float speed_recovery_k  = 0.3f;    // 加速恢复系数（0-1，越大恢复越快，1=瞬时）
 
     // ---- 岔路策略 ----

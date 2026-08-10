@@ -100,6 +100,12 @@ struct SharedContext {
     cv::Point2f   car_obs_pt_{0, 0};
     bool          car_obs_valid_ = false;
 
+    // ---- PersonScene 行人鸟瞰点（PersonScene写，DisplayTask读，鸟瞰图画十字） ----
+    // person_obs_pt：行人框底边中点的宽鸟瞰坐标；person_obs_valid：本帧是否有检测
+    std::mutex    person_obs_mtx_;
+    cv::Point2f   person_obs_pt_{0, 0};
+    bool          person_obs_valid_ = false;
+
     // ---- UART直发（场景紧急停车可绕过ControlTask下发循环） ----
     UartIO* uart_io = nullptr;
 

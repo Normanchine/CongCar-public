@@ -171,12 +171,12 @@ if (lost_frames_ > max_lost_frames) { stop = true; return; }   // 超限停车�
 sign = (last_error_ > 0) ? 1 : -1;
 step = coast_steer_step * lost_frames_ / max_lost_frames;      // 逐帧递增偏移
 pwm  = clamp(last_pwm_ - sign * step, pwm_min, pwm_max);       // 盲开保持方向+渐偏
-last_speed_ *= coast_speed_decay;                              // 速度指数衰减
+last_speed_ = coast_speed;                                     // 盲开固定速度
 ```
 
 | 阶段 | 行为 |
 |------|------|
-| 短时丢失（≤max_lost_frames） | 盲开：保持方向 + 逐帧递增偏移 + 速度衰减 |
+| 短时丢失（≤max_lost_frames） | 盲开：保持方向 + 逐帧递增偏移 + **固定速度（coast_speed）** |
 | 彻底丢失（>max_lost_frames） | 停车保护 `stop=true` |
 
 ## 9. config 相关参数（NormalScene）
@@ -188,7 +188,7 @@ last_speed_ *= coast_speed_decay;                              // 速度指数�
   "pwm_mid": 1560, "pwm_min": 500, "pwm_max": 2500, "pwm_k": 600,
   "steer_speed_threshold": 0.15, "steer_speed_k": 1.5,
   "lookahead_speed_k": 0.15, "max_lost_frames": 30,
-  "coast_steer_step": 200, "coast_speed_decay": 0.9, "speed_recovery_k": 0.01,
+  "coast_steer_step": 200, "coast_speed": 0.5, "speed_recovery_k": 0.01,
   "scene": {
     "NormalScene": { "lateral_offset_ratio": 0.15, "cx_smooth_frames": 100 }
   }

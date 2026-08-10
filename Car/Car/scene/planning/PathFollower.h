@@ -64,4 +64,7 @@ public:
     // 子类设置沿边方向
     void setFollowEdge(int edge) { follow_edge_ = edge; }
 
+    // 查询当前沿边方向（PersonScene 起步判断用：左/右边界）
+    int getFollowEdge() const { return follow_edge_; }
+
 };

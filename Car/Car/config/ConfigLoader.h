@@ -14,6 +14,7 @@ inline void to_json(json& j, const SceneControlParams& s) {
         {"lateral_offset_ratio", s.lateral_offset_ratio},
         {"aim_dist_max", s.aim_dist_max},
         {"cx_smooth_frames", s.cx_smooth_frames},
+        {"person_stop_ratio", s.person_stop_ratio},
     };
 }
 
@@ -21,6 +22,7 @@ inline void from_json(const json& j, SceneControlParams& s) {
     if (j.contains("lateral_offset_ratio")) j.at("lateral_offset_ratio").get_to(s.lateral_offset_ratio);
     if (j.contains("aim_dist_max")) j.at("aim_dist_max").get_to(s.aim_dist_max);
     if (j.contains("cx_smooth_frames")) j.at("cx_smooth_frames").get_to(s.cx_smooth_frames);
+    if (j.contains("person_stop_ratio")) j.at("person_stop_ratio").get_to(s.person_stop_ratio);
 }
 
 // ---- ForkConfig 序列化 ----
@@ -61,7 +63,7 @@ inline void to_json(json& j, const ControlConfig& c) {
         {"lookahead_speed_k",   c.lookahead_speed_k},
         {"max_lost_frames",     c.max_lost_frames},
         {"coast_steer_step",   c.coast_steer_step},
-        {"coast_speed_decay",  c.coast_speed_decay},
+        {"coast_speed",        c.coast_speed},
         {"speed_recovery_k",   c.speed_recovery_k},
         {"fork",                c.fork},
         {"scene",               c.scene}
@@ -85,7 +87,7 @@ inline void from_json(const json& j, ControlConfig& c) {
     if (j.contains("lookahead_speed_k"))   j.at("lookahead_speed_k").get_to(c.lookahead_speed_k);
     if (j.contains("max_lost_frames"))     j.at("max_lost_frames").get_to(c.max_lost_frames);
     if (j.contains("coast_steer_step"))    j.at("coast_steer_step").get_to(c.coast_steer_step);
-    if (j.contains("coast_speed_decay"))  j.at("coast_speed_decay").get_to(c.coast_speed_decay);
+    if (j.contains("coast_speed"))        j.at("coast_speed").get_to(c.coast_speed);
     if (j.contains("speed_recovery_k"))   j.at("speed_recovery_k").get_to(c.speed_recovery_k);
     if (j.contains("fork"))  j.at("fork").get_to(c.fork);
     if (j.contains("scene")) j.at("scene").get_to(c.scene);
