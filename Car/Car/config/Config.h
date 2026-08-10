@@ -33,6 +33,10 @@ struct ControlConfig {
     float pid_p     = 0.0f;            // P 系数
     float pid_d     = 0.0f;            // D 系数
 
+    // 全局沿边方向初始值：-1=左边界 +1=右边界 0=中点。
+    // 各场景首帧从此继承（不再固定左边界）；CarScene 每帧按障碍位置改写
+    int default_follow_edge = -1;
+
     // ---- 物理参数 ----
     float car_length    = 0.316f;      // 轴距 (m)
     float car_cy_ratio  = 0.95f;       // 车底中心 y = 车高 * ratio

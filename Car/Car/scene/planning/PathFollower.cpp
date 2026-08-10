@@ -2,17 +2,72 @@
 #include "../../thread/SharedContext.h"
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <iostream>
+#include <vector>
+
+// ---- 赛道等宽归一化（鸟瞰图 mask 就地修改） ----
+// 每行：第一次断裂（第一个空白出现处）右边的白色全部舍弃（分叉/干扰）；
+// 保留第一个白段 [L, R]，锚定左边界不动，把右边界归一化到平均宽度 avg：
+//   R > L+avg-1 → 裁剪（收回）；R < L+avg-1 → 补上（右扩）。
+// 不依赖巡线边界：左/右边界巡线都同一套"锚左调右"。
+static void normalizeTrackWidth(cv::Mat& mask) {
+    int w = mask.cols, h = mask.rows;
+    if (h == 0) return;
+
+    // 第一遍：逐行找第一个白段 [L, R]
+    std::vector<int> left(h, -1), right(h, -1);
+    for (int r = 0; r < h; ++r) {
+        const uint8_t* row = mask.ptr<uint8_t>(r);
+        int L = -1;
+        for (int c = 0; c < w; ++c) {
+            if (row[c] > 0) { L = c; break; }
+        }
+        if (L < 0) continue;
+        int R = L;
+        while (R + 1 < w && row[R + 1] > 0) ++R;
+        left[r]  = L;
+        right[r] = R;
+    }
+
+    // 平均宽度 = 各行第一个白段长度的平均（只算有赛道的行）
+    int sum = 0, cnt = 0;
+    for (int r = 0; r < h; ++r) {
+        if (left[r] >= 0) { sum += right[r] - left[r] + 1; ++cnt; }
+    }
+    if (cnt == 0) return;
+    int avg = sum / cnt;
+
+    // 第二遍：逐行舍弃 + 归一化
+    for (int r = 0; r < h; ++r) {
+        if (left[r] < 0) continue;
+        uint8_t* row = mask.ptr<uint8_t>(r);
+        int L = left[r];
+        int R = right[r];
+        int target_R = std::min(L + avg - 1, w - 1);
+
+        // 1) 第一次断裂右边舍弃（第一个白段之后全部置 0）
+        if (R + 1 < w) std::memset(row + R + 1, 0, (w - R - 1) * sizeof(uint8_t));
+        // 2) 归一化到 avg：补（右扩）或裁（收回）
+        if (target_R > R) {
+            std::memset(row + R + 1, 1, (target_R - R) * sizeof(uint8_t));
+        } else if (target_R < R) {
+            std::memset(row + target_R + 1, 0, (R - target_R) * sizeof(uint8_t));
+        }
+    }
+}
 
 // ---- 模板方法：固定流程 ----
 bool PathFollower::process(const cv::Mat& seg_mask, SharedContext* ctx) {
     const auto& calib = ctx->config.calib;
     const auto& ctrl  = ctx->config.control;
 
-    // 首帧从ctx继承error和speed，场景切换无脉冲
+    // 首帧从ctx继承error/speed/沿边方向，场景切换无脉冲
     if (first_frame_) {
         last_error_ = ctx->last_error.load(std::memory_order_acquire);
         last_speed_ = ctx->target_speed.load(std::memory_order_acquire);
+        // 沿边方向从全局继承（不再固定左边界；CarScene 等场景会更新全局）
+        follow_edge_ = ctx->follow_edge_global.load(std::memory_order_acquire);
     }
 
     // ---- 0. 宽鸟瞰变换 ----
@@ -23,6 +78,9 @@ bool PathFollower::process(const cv::Mat& seg_mask, SharedContext* ctx) {
 
     // ---- 1. 全程宽鸟瞰巡线（不再裁中心区，边界提取需要宽视野） ----
     cv::Mat mask = wide_mask;
+
+    // ---- 1.5 赛道等宽归一化（鸟瞰图）：每行只留第一个白段，多裁少补到平均宽度 ----
+    normalizeTrackWidth(mask);
 
     if (ctx->config.debug_mode) {
         std::lock_guard<std::mutex> lk(ctx->bird_mtx_);

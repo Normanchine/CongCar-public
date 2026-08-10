@@ -1,7 +1,7 @@
 # NormalScene 巡线设计
 
 > 版本: v1.0 | 涉及: `NormalScene` / `PathFollower` / `PathPlanning`
-> 核心: **沿边界巡线（默认左边界）+ 参考点平滑 + 纯跟踪 + PD + 丢线盲开**
+> 核心: **沿边界巡线（边界由全局继承）+ 参考点平滑 + 纯跟踪 + PD + 丢线盲开**
 
 ## 1. 总览
 
@@ -30,7 +30,7 @@ wide_mask = perspective.warp(seg_mask)          // 宽鸟瞰（960×480）
 mask = wide_mask
    │
    ▼ 2. 边界提取（onCenterline 默认）
-centers = extractBoundary(mask, centers, follow_edge_)   // follow_edge_=-1 左边界
+centers = extractBoundary(mask, centers, follow_edge_)   // 沿边方向（首帧从全局继承）
 centers = smoothCenterline(centers)                      // 滑动平滑
    │
    ├─ centers 为空？ ──► onLost（盲开/停车保护）
@@ -71,7 +71,7 @@ for (每行 r):
     out.push({x, r})
 ```
 
-**NormalScene 用 `follow_edge_=-1` → 输出左边界**。输出点序：行 r 从 0（鸟瞰顶部=远）到 h-1（底部=近车）。
+**NormalScene 的 `follow_edge_` 首帧从全局继承**（默认左，CarScene 改写后沿用），不再固定左边界。输出点序：行 r 从 0（鸟瞰顶部=远）到 h-1（底部=近车）。
 
 ### 3.2 smoothCenterline（PathPlanning.h）
 
@@ -211,6 +211,6 @@ last_speed_ = coast_speed;                                     // 盲开固定�
 
 | 场景 | 沿边方向 | cx 平滑 | 前视上限 |
 |------|---------|---------|---------|
-| NormalScene（默认） | 左边界（-1） | **是（100帧）** | 无 |
+| NormalScene（默认） | 全局继承（默认左） | **是（100帧）** | 无 |
 | TrafficSignScene | fork_side 联动（0→左/1→右） | 否 | 无 |
 | CarScene | 实时检测（障碍对侧） | 否 | 0.4 |

@@ -50,6 +50,7 @@ inline void to_json(json& j, const ControlConfig& c) {
         {"max_speed",           c.max_speed},
         {"pid_p",               c.pid_p},
         {"pid_d",               c.pid_d},
+        {"default_follow_edge", c.default_follow_edge},
         {"car_length",          c.car_length},
         {"car_cy_ratio",        c.car_cy_ratio},
         {"aim_dist_near",       c.aim_dist_near},
@@ -74,6 +75,7 @@ inline void from_json(const json& j, ControlConfig& c) {
     if (j.contains("max_speed")) j.at("max_speed").get_to(c.max_speed);
     if (j.contains("pid_p"))     j.at("pid_p").get_to(c.pid_p);
     if (j.contains("pid_d"))     j.at("pid_d").get_to(c.pid_d);
+    if (j.contains("default_follow_edge")) j.at("default_follow_edge").get_to(c.default_follow_edge);
     j.at("car_length").get_to(c.car_length);
     j.at("car_cy_ratio").get_to(c.car_cy_ratio);
     if (j.contains("aim_dist_near"))    j.at("aim_dist_near").get_to(c.aim_dist_near);

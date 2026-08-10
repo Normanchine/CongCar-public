@@ -7,7 +7,7 @@
 
 | 场景 | 沿边方向 |
 |------|---------|
-| NormalScene（默认） | **左边界**（`follow_edge_ = -1`） |
+| NormalScene（默认） | **全局继承**（默认左，CarScene 改写后沿用，不切回） |
 | TrafficSignScene | 直走→左边界，右转→右边界（`fork_side` 联动） |
 | CarScene | 障碍在左→**右边界**，障碍在右→**左边界**（首帧锁存） |
 
@@ -120,6 +120,7 @@ DetTask 检测到 car → 切入 CarScene
   │   每帧更新，不锁死（单帧检测有误差，实时纠正）
   └─ 每帧：Follower.process(seg_mask, ctx)   // 基类 onCenterline 用 follow_edge_
 DetTask 连续 lost_frame_limit 帧检测不到 car → 自动切回 NormalScene
+（CarScene 每帧把当前边界写入全局，NormalScene 首帧继承 → 继续沿同一边界，不切回默认左）
 ```
 
 **判断基准 = 赛道中心，不是画面中心**：车沿边界走时，鸟瞰画面中心 ≠ 赛道中心。判断用 `trackCenterXAt(seg_mask, obs.y)`——宽鸟瞰提取中线、在障碍 y 处插值出赛道中心 x，比较 `obs.x < 赛道中心x`。中线为空时兜底用宽鸟瞰中心。

@@ -89,6 +89,10 @@ struct SharedContext {
     // -1=沿左边界 0=未锁存(沿中线) +1=沿右边界
     std::atomic<int> car_edge{0};
 
+    // ---- 全局沿边方向（所有场景首帧继承，CarScene 每帧改写） ----
+    // 场景切换不切回默认左边界，而是沿用上次使用的边界
+    std::atomic<int> follow_edge_global{-1};
+
     // ---- 当前巡线参考点横向偏移比例（PathFollower写，DisplayTask读，画蓝点） ----
     // 控制器每帧的 cur_cx_ratio_（含 cx_smooth 平滑值），跨场景一致。
     // 不能用 car_edge 代替：CarScene→Normal 切换后 car_edge 残留会导致偏移方向错。
