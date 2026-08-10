@@ -168,15 +168,14 @@ return last_speed_ + (target - last_speed_) * speed_recovery_k;   // 加速平�
 lost_frames_++;
 if (lost_frames_ > max_lost_frames) { stop = true; return; }   // 超限停车保护
 
-sign = (last_error_ > 0) ? 1 : -1;
 step = coast_steer_step * lost_frames_ / max_lost_frames;      // 逐帧递增偏移
-pwm  = clamp(last_pwm_ - sign * step, pwm_min, pwm_max);       // 盲开保持方向+渐偏
+pwm  = clamp(last_pwm_ + steering_dir * step, pwm_min, pwm_max);  // 盲开只右转+渐偏
 last_speed_ = coast_speed;                                     // 盲开固定速度
 ```
 
 | 阶段 | 行为 |
 |------|------|
-| 短时丢失（≤max_lost_frames） | 盲开：保持方向 + 逐帧递增偏移 + **固定速度（coast_speed）** |
+| 短时丢失（≤max_lost_frames） | 盲开：**只右转**（赛道在右侧）+ 逐帧递增偏移 + **固定速度（coast_speed）** |
 | 彻底丢失（>max_lost_frames） | 停车保护 `stop=true` |
 
 ## 9. config 相关参数（NormalScene）

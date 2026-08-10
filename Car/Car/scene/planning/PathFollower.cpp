@@ -162,9 +162,10 @@ void PathFollower::onLost(SharedContext* ctx) {
     std::cerr << "[PathFollower] 赛道闪烁丢失，盲开中... "
               << lost_frames_ << "/" << ctrl.max_lost_frames << std::endl;
 
-    float sign = (last_error_ > 0.0f) ? 1.0f : -1.0f;
     float step = ctrl.coast_steer_step * lost_frames_ / ctrl.max_lost_frames;
-    float pwm = last_pwm_ - sign * step;
+    // 盲开只右转：赛道通常在右侧，固定沿右转方向（pwm 增大）搜索找回赛道；
+    // steering_dir 处理 AR 镜像，避免转向反
+    float pwm = last_pwm_ + ctx->steering_dir * step;
     pwm = std::clamp(pwm, ctrl.pwm_min, ctrl.pwm_max);
     last_pwm_ = pwm;
     ctx->steering_pwm.store(pwm);
