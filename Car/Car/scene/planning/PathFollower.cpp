@@ -235,10 +235,15 @@ void PathFollower::onLost(SharedContext* ctx) {
 float PathFollower::onPD(float error, SharedContext* ctx) {
     const auto& ctrl = ctx->config.control;
 
+    // 按当前沿边方向选 PD：左边界 pid_p/pid_d，右边界 pid_p_right/pid_d_right
+    bool right = (follow_edge_ > 0);
+    float pid_p = right ? ctrl.pid_p_right : ctrl.pid_p;
+    float pid_d = right ? ctrl.pid_d_right : ctrl.pid_d;
+
     float derivative = first_frame_ ? 0.0f : (error - last_error_);
     last_error_ = error;
 
-    float output = ctrl.pid_p * error + ctrl.pid_d * derivative;
+    float output = pid_p * error + pid_d * derivative;
     float pwm = ctrl.pwm_mid - output * ctrl.pwm_k;
     return std::clamp(pwm, ctrl.pwm_min, ctrl.pwm_max);
 }

@@ -41,6 +41,7 @@ error  = headingError(cx, cy, aim_pt)               // 航向误差
    │
    ▼ 4. PD 控制（onPD 默认）
 pwm = pwm_mid - (pid_p*error + pid_d*derivative) * pwm_k   // 钳到 [pwm_min, pwm_max]
+// pid_p/pid_d 为左边界；右边界用 pid_p_right/pid_d_right（onPD 按 follow_edge_ 选）
    │
    ▼ 5. 速度控制（onSpeed 默认）
 target = max_speed（大弯减速 + 加速平滑恢复）
@@ -145,7 +146,8 @@ error = -atan(2 * car_length * dx / (dx²+dy²))
 
 ```cpp
 float derivative = first_frame_ ? 0 : (error - last_error_);  // 首帧跳 D（防场景切换脉冲）
-output = pid_p * error + pid_d * derivative;
+output = (follow_edge_ > 0 ? pid_p_right : pid_p) * error       // 左/右边界分开调 PD
+       + (follow_edge_ > 0 ? pid_d_right : pid_d) * derivative;
 pwm = pwm_mid - output * pwm_k;
 return clamp(pwm, pwm_min, pwm_max);
 ```
@@ -182,7 +184,8 @@ last_speed_ = coast_speed;                                     // 盲开固定�
 
 ```json
 "control": {
-  "max_speed": 1.3, "pid_p": 0.3, "pid_d": 1.5, "aim_dist_near": 0.15,
+  "max_speed": 1.3, "pid_p": 0.3, "pid_d": 1.5,
+  "pid_p_right": 0.3, "pid_d_right": 1.5, "aim_dist_near": 0.15,
   "car_cy_ratio": 0.95, "car_length": 0.193,
   "pwm_mid": 1560, "pwm_min": 500, "pwm_max": 2500, "pwm_k": 600,
   "steer_speed_threshold": 0.15, "steer_speed_k": 1.5,

@@ -30,8 +30,10 @@ struct ForkConfig {
 struct ControlConfig {
     // ---- 全局控制参数（所有场景统一，切换场景无参数跳变） ----
     float max_speed = 1.0f;            // 目标速度 (m/s)
-    float pid_p     = 0.0f;            // P 系数
-    float pid_d     = 0.0f;            // D 系数
+    float pid_p     = 0.0f;            // P 系数（左边界）
+    float pid_d     = 0.0f;            // D 系数（左边界）
+    float pid_p_right = 0.0f;          // P 系数（右边界，0=回退用左边界）
+    float pid_d_right = 0.0f;          // D 系数（右边界，0=回退用左边界）
 
     // 全局沿边方向初始值：-1=左边界 +1=右边界 0=中点。
     // 各场景首帧从此继承（不再固定左边界）；CarScene 每帧按障碍位置改写
