@@ -78,6 +78,20 @@ void SegmentationTask::run() {
                 mask.data[i] = (ch0[i] >= ch1[i]) ? 0 : 1;
             }
 
+            // ---- 去噪：连通域过滤，长宽任一不足 min_region_px 的碎片剪掉 ----
+            // 赛道干扰物被分割成小块会污染边界提取；在源头(模型输出mask)清除，
+            // 所有下游（巡线 + 显示）拿到的都是干净 mask
+            if (seg_cfg.min_region_px > 0) {
+                cv::Mat labels, stats, centroids;
+                int ncomp = cv::connectedComponentsWithStats(mask, labels, stats, centroids);
+                for (int i = 1; i < ncomp; ++i) {   // 0=背景
+                    int w = stats.at<int>(i, cv::CC_STAT_WIDTH);
+                    int h = stats.at<int>(i, cv::CC_STAT_HEIGHT);
+                    if (w < seg_cfg.min_region_px || h < seg_cfg.min_region_px)
+                        mask.setTo(0, labels == i);   // 长宽任一不足 → 剪掉
+                }
+            }
+
             cv::Mat mask_resized;
             cv::resize(mask, mask_resized, cv::Size(orig_w, orig_h), 0, 0, cv::INTER_NEAREST);
 

@@ -68,6 +68,10 @@ struct SegmentationConfig {
         "/home/orangepi/Desktop/seg_python/model/pplite_seg.rknn";
     int input_w = 160;
     int input_h = 160;
+
+    // 后处理去噪：连通域长宽任一小于此像素数 → 判定为干扰碎片，剪掉。
+    // 在推理分辨率(seg_w×seg_h)上判定，0=不过滤
+    int min_region_px = 10;
 };
 
 struct DetectionConfig {

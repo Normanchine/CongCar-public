@@ -100,6 +100,7 @@ inline void to_json(json& j, const SegmentationConfig& s) {
         {"model_path", s.model_path},
         {"input_w", s.input_w},
         {"input_h", s.input_h},
+        {"min_region_px", s.min_region_px},
     };
 }
 
@@ -107,6 +108,7 @@ inline void from_json(const json& j, SegmentationConfig& s) {
     j.at("model_path").get_to(s.model_path);
     j.at("input_w").get_to(s.input_w);
     j.at("input_h").get_to(s.input_h);
+    if (j.contains("min_region_px")) j.at("min_region_px").get_to(s.min_region_px);
 }
 
 // ---- DetectionConfig 序列化 ----

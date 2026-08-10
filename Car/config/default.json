@@ -40,7 +40,8 @@
     "segmentation": {
       "model_path": "/home/orangepi/Desktop/new/model/pplite_seg_512x192_int8.rknn",
       "input_w": 512,
-      "input_h": 192
+      "input_h": 192,
+      "min_region_px": 50
     },
     "detection": {
       "model_path": "/home/orangepi/Desktop/new/model/ppyoloe_head_320x256_rk3588_int8.rknn",
