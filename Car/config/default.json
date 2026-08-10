@@ -31,7 +31,7 @@
     "scene": {
       "NormalScene": { "lateral_offset_ratio": 0.15, "cx_smooth_frames": 100 },
       "TrafficSignScene": { "lateral_offset_ratio": 0.15 },
-      "CarScene": { "lateral_offset_ratio": 0.1, "aim_dist_max": 0.15 }
+      "CarScene": { "lateral_offset_ratio": 0.1, "aim_dist_max": 0.10 }
     }
   },
 
