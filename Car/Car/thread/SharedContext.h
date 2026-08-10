@@ -129,4 +129,8 @@ struct SharedContext {
 
     // ---- 控制标记 ----
     std::atomic<bool> stop{false};
+
+    // ---- 远程发车（ControlTask stdin 线程写，ControlTask 读，等价下位机按键） ----
+    // 终端输入一行指令置位；consumeKeypress 与物理按键合并消费（发车/急停切换）
+    std::atomic<bool> remote_keypress{false};
 };

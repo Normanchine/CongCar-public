@@ -3,6 +3,7 @@
 #include "../hal/uart/UartIO.h"
 #include "../thread/ThreadTaskFactory.h"
 #include <chrono>
+#include <cstdio>
 #include <iostream>
 #include <thread>
 
@@ -14,6 +15,34 @@ ControlTask::~ControlTask() = default;
 void ControlTask::run() {
     UartIO uart;
     const auto& uc = ctx_->config.uart;
+
+    // ---- 0. 远程发车：终端输入监听（一行=一次指令，等价下位机按键） ----
+    // 发车阶段首次输入=启动；主循环输入=启动/急停切换（与物理按键合并）
+    std::cout << "[ControlTask] 远程发车已启用：终端输入任意字符+回车 = 发车/急停" << std::endl;
+    {
+        std::thread stdin_thread([this]() {
+            char line[64];
+            while (!ctx_->stop.load(std::memory_order_acquire)) {
+                if (!std::fgets(line, sizeof(line), stdin)) {
+                    // 无终端/EOF，避免忙等（后台运行时 stdin 直接 EOF）
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                    continue;
+                }
+                // 空行/纯回车忽略；有内容的一行 = 一次发车指令
+                bool has_cmd = false;
+                for (const char* p = line; *p; ++p) {
+                    if (*p != '\n' && *p != '\r' && *p != ' ' && *p != '\t') {
+                        has_cmd = true;
+                        break;
+                    }
+                }
+                if (!has_cmd) continue;
+                std::cout << "[ControlTask] 终端指令: " << line;
+                ctx_->remote_keypress.store(true, std::memory_order_release);
+            }
+        });
+        stdin_thread.detach();   // fgets 阻塞无法 join，立即分离；进程退出即结束
+    }
 
     // ---- 1. 连接串口（支持重试） ----
     while (!ctx_->stop.load(std::memory_order_acquire)) {
@@ -36,9 +65,9 @@ void ControlTask::run() {
     std::cout << "[ControlTask] 等待按键启动..." << std::endl;
     bool running = false;
     while (!ctx_->stop.load(std::memory_order_acquire)) {
-        if (uart.consumeKeypress()) {
+        if (uart.consumeKeypress() || ctx_->remote_keypress.exchange(false)) {
             running = true;
-            std::cout << "[ControlTask] 按键启动" << std::endl;
+            std::cout << "[ControlTask] 按键/终端发车启动" << std::endl;
             break;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -59,8 +88,8 @@ void ControlTask::run() {
         // 3b. 执行当前场景（不管按键状态，场景始终运行）
         ctx_->scene_manager.run(ctx_);
 
-        // 3c. 按键切换：只控制是否下发串口指令
-        if (uart.consumeKeypress()) {
+        // 3c. 按键/终端指令切换：只控制是否下发串口指令
+        if (uart.consumeKeypress() || ctx_->remote_keypress.exchange(false)) {
             running = !running;
             std::cout << "[ControlTask] 通信: " << (running ? "开启" : "关闭") << std::endl;
         }
