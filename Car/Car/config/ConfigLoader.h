@@ -13,7 +13,6 @@ inline void to_json(json& j, const SceneControlParams& s) {
     j = json{
         {"lateral_offset_ratio", s.lateral_offset_ratio},
         {"aim_dist_max", s.aim_dist_max},
-        {"cx_smooth_frames", s.cx_smooth_frames},
         {"person_stop_ratio", s.person_stop_ratio},
         {"turn_blind_frames", s.turn_blind_frames},
         {"turn_blind_speed",  s.turn_blind_speed},
@@ -23,7 +22,6 @@ inline void to_json(json& j, const SceneControlParams& s) {
 inline void from_json(const json& j, SceneControlParams& s) {
     if (j.contains("lateral_offset_ratio")) j.at("lateral_offset_ratio").get_to(s.lateral_offset_ratio);
     if (j.contains("aim_dist_max")) j.at("aim_dist_max").get_to(s.aim_dist_max);
-    if (j.contains("cx_smooth_frames")) j.at("cx_smooth_frames").get_to(s.cx_smooth_frames);
     if (j.contains("person_stop_ratio")) j.at("person_stop_ratio").get_to(s.person_stop_ratio);
     if (j.contains("turn_blind_frames")) j.at("turn_blind_frames").get_to(s.turn_blind_frames);
     if (j.contains("turn_blind_speed"))  j.at("turn_blind_speed").get_to(s.turn_blind_speed);

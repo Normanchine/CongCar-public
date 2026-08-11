@@ -78,14 +78,14 @@ float cx = w * (0.5f - follow_edge_ * sp.lateral_offset_ratio);
 - **贴边界内侧**：左边界 → 参考点偏右（cx 增大）；右边界 → 参考点偏左（cx 减小）——同一参数，符号自动决定
 - 显示侧蓝点同步画到偏移后的参考点位置，且鸟瞰图垂直中心画红线区分左右
 
-| 场景 | `lateral_offset_ratio` | `aim_dist_max` | `cx_smooth_frames` |
-|------|------------------------|----------------|-------------------|
-| NormalScene | 0.15（贴边内侧） | 0（不限） | 30（cx 平滑到位） |
-| TrafficSignScene | 0.0（压线） | 0（不限） | 0（硬切） |
-| CarScene | 0.1（贴边内侧） | 0.4（前视上限） | 0（硬切） |
+| 场景 | `lateral_offset_ratio` | `aim_dist_max` |
+|------|------------------------|----------------|
+| NormalScene | 0.15（贴边内侧） | 0（不限） |
+| TrafficSignScene | 0.0（压线） | 0（不限） |
+| CarScene | 0.1（贴边内侧） | 0.4（前视上限） |
 
 - `aim_dist_max`：前视点最大距离 (m)，`0`=不限制。CarScene 沿边界走时限制前视，避免远处边界提取误差放大；`aim_dist = min(near + speed×k, aim_dist_max)`。
-- `cx_smooth_frames`：车底中心参考点平滑到位帧数，`0`=硬切。NormalScene 从画面中心/当前值在 N 帧内线性平滑到目标偏移，避免场景切换的参考点横向跳变；其他场景硬切。平滑期间前视点保持当前速度下的动态前视（最远），参考点移动时用远前视稳定跟踪。
+- 参考点横向偏移 `target_cx_ratio = -follow_edge_ * lateral_offset_ratio` 直接生效（边界全局继承不跳变，无需平滑）。
 
 ### 3.5 全局统一控制参数（场景切换无顿挫）
 

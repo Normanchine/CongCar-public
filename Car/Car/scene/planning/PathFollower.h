@@ -56,10 +56,6 @@ protected:
     // onCenterline 默认用 extractBoundary 取该侧边界点
     int follow_edge_ = -1;
 
-    // 车底中心参考点横向偏移平滑（NormalScene 从画面中心平滑移到目标）
-    float cur_cx_ratio_   = 0.0f;   // 当前平滑后的偏移（相对画面中心）
-    int   cx_smooth_left_ = 0;      // 剩余平滑帧数
-
 public:
     // 子类设置沿边方向
     void setFollowEdge(int edge) { follow_edge_ = edge; }

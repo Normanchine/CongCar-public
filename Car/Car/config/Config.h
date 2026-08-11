@@ -13,9 +13,6 @@ struct SceneControlParams {
     // 前视点最大距离 (m)，0=不限制。CarScene 沿边界走时限制前视，避免远处误差放大
     float aim_dist_max = 0.0f;
 
-    // 车底中心参考点平滑到位帧数，0=不平滑（直接硬切）。NormalScene 从画面中心平滑移到目标
-    float cx_smooth_frames = 0.0f;
-
     // PersonScene：行人底部到达鸟瞰图高度的此比例时停车（0~1，默认0.5=鸟瞰图一半高度）
     float person_stop_ratio = 0.5f;
 

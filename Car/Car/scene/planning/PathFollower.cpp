@@ -125,9 +125,6 @@ bool PathFollower::process(const cv::Mat& seg_mask, SharedContext* ctx) {
     if (!onPurePursuit(mask, centers, error, aim_pt, ctx))
         return true;
 
-    // 同步当前参考点偏移比例给显示（蓝点 = 控制器实际瞄准位置，含平滑值）
-    ctx->ref_ratio.store(cur_cx_ratio_, std::memory_order_release);
-
     // ---- 6. PD + PWM（可重写） ----
     float pwm = onPD(error, ctx);
     last_pwm_ = pwm;
@@ -181,16 +178,8 @@ bool PathFollower::onPurePursuit(const cv::Mat& mask,
     // 左边界(-1)→偏右(cx增大)；右边界(+1)→偏左(cx减小)
     float target_cx_ratio = -follow_edge_ * sp.lateral_offset_ratio;
 
-    // cx 平滑：NormalScene(cx_smooth_frames>0) 从画面中心/当前值线性平滑到目标；其他场景硬切
-    if (sp.cx_smooth_frames > 0.0f && std::abs(target_cx_ratio - cur_cx_ratio_) > 1e-5f) {
-        if (cx_smooth_left_ <= 0) cx_smooth_left_ = static_cast<int>(sp.cx_smooth_frames);
-        cur_cx_ratio_ += (target_cx_ratio - cur_cx_ratio_) / cx_smooth_left_;
-        cx_smooth_left_--;
-    } else {
-        cur_cx_ratio_ = target_cx_ratio;
-    }
-
-    float cx = w * (0.5f + cur_cx_ratio_);
+    // 全局沿边方向继承，切换场景不跳变，参考点直接取目标偏移（无需平滑）
+    float cx = w * (0.5f + target_cx_ratio);
     float cy = h * ctrl.car_cy_ratio;
     float cur_spd = (last_speed_ > 0.01f) ? last_speed_ : ctrl.max_speed;
     // 平滑期间前视也用当前速度下的动态前视（最远），参考点移动时保持远前视稳定
@@ -204,6 +193,9 @@ bool PathFollower::onPurePursuit(const cv::Mat& mask,
     error = pathplan::headingError(cx, cy, aim_pt.x, aim_pt.y,
                                     ctrl.car_length, calib.ppm_x, calib.ppm_y)
           * ctx->steering_dir;
+
+    // 同步参考点偏移给显示（蓝点 = 控制器实际瞄准位置）
+    ctx->ref_ratio.store(target_cx_ratio, std::memory_order_release);
     return true;
 }
 

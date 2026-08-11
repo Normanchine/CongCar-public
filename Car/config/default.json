@@ -32,7 +32,7 @@
       "width_threshold": 1.0
     },
     "scene": {
-      "NormalScene": { "lateral_offset_ratio": 0.15, "cx_smooth_frames": 100 },
+      "NormalScene": { "lateral_offset_ratio": 0.15 },
       "TrafficSignScene": { "lateral_offset_ratio": 0.15, "turn_blind_frames": 50, "turn_blind_speed": 0.5 },
       "CarScene": { "lateral_offset_ratio": 0.1, "aim_dist_max": 0.10 },
       "PersonScene": { "lateral_offset_ratio": 0.15, "person_stop_ratio": 0.5 }
@@ -59,7 +59,7 @@
       "scene_map": {"sign": "TrafficSignScene", "person": "PersonScene", "car": "CarScene"}
     },
     "vlm": {
-      "api_key": "",
+      "api_key": "***REMOVED***",
       "base_url": "https://qianfan.baidubce.com/v2",
       "model": "ernie-4.5-turbo-vl-32k",
       "deadline_seconds": 10,

@@ -1,7 +1,7 @@
 # NormalScene 巡线设计
 
 > 版本: v1.0 | 涉及: `NormalScene` / `PathFollower` / `PathPlanning`
-> 核心: **沿边界巡线（边界由全局继承）+ 参考点平滑 + 纯跟踪 + PD + 丢线盲开**
+> 核心: **沿边界巡线（边界由全局继承）+ 纯跟踪 + PD + 丢线盲开**
 
 ## 1. 总览
 
@@ -80,26 +80,15 @@ for (每行 r):
 - 纵向赛道（Y 跨度 > X 跨度）→ 每点 x 取邻域均值，保留行号
 - 横向赛道（X 跨度 > Y 跨度）→ 每点 y 取邻域均值，保留列号
 
-## 4. 参考点：cx 平滑到位
+## 4. 参考点：目标偏移直接生效
 
-车底中心参考点 `(cx, cy)` 是纯跟踪的锚点，**横向 cx 用平滑值**：
+车底中心参考点 `(cx, cy)` 是纯跟踪的锚点，横向偏移直接取目标值（边界已全局化，场景切换不跳变，无需平滑）：
 
 ```cpp
 // onPurePursuit
 float target_cx_ratio = -follow_edge_ * sp.lateral_offset_ratio;  // 目标偏移
-// sp = NormalScene 场景参数
-
-// cx 平滑（NormalScene 配置 cx_smooth_frames>0 才生效）
-if (cx_smooth_frames>0 && |target - cur| > 1e-5) {
-    if (cx_smooth_left_ <= 0) cx_smooth_left_ = cx_smooth_frames;
-    cur_cx_ratio_ += (target - cur_cx_ratio_) / cx_smooth_left_;  // 线性逼近
-    cx_smooth_left_--;
-} else {
-    cur_cx_ratio_ = target_cx_ratio;   // 到位/无配置：直接取目标
-}
-
-float cx = w * (0.5f + cur_cx_ratio_);   // 画面中心 + 平滑偏移
-float cy = h * ctrl.car_cy_ratio;        // 纵向固定 95% 高度
+float cx = w * (0.5f + target_cx_ratio);   // 画面中心 + 目标偏移
+float cy = h * ctrl.car_cy_ratio;          // 纵向固定 95% 高度
 ```
 
 ### 4.1 目标偏移的方向语义
@@ -109,11 +98,7 @@ float cy = h * ctrl.car_cy_ratio;        // 纵向固定 95% 高度
 | -1（左边界） | 0.15 | `w*(0.5+0.15)=0.65w` | 参考点偏右 → 车贴左边界内侧 |
 | +1（右边界） | 0.15 | `w*(0.5-0.15)=0.35w` | 参考点偏左 → 车贴右边界内侧 |
 
-**为什么平滑**：场景切换（如 CarScene→NormalScene）时 cx 目标突变，若硬切会让纯跟踪参考点横向跳变 → 转向脉冲。平滑后从当前值在 `cx_smooth_frames` 帧内线性过渡。
-
-### 4.2 平滑期间的前视
-
-平滑期间**不钳前视**，用当前速度下的动态前视（最远值），保持远前视稳定跟踪。
+**为什么直接生效**：边界由全局 `follow_edge_global` 继承，场景切换回 Normal 沿用同一边界，参考点目标不跳变，无需平滑过渡。
 
 ## 5. 纯跟踪（onPurePursuit 默认）
 
@@ -192,7 +177,7 @@ last_speed_ = coast_speed;                                     // 盲开固定�
   "lookahead_speed_k": 0.15, "max_lost_frames": 30,
   "coast_steer_step": 200, "coast_speed": 0.5, "speed_recovery_k": 0.01,
   "scene": {
-    "NormalScene": { "lateral_offset_ratio": 0.15, "cx_smooth_frames": 100 }
+    "NormalScene": { "lateral_offset_ratio": 0.15 }
   }
 }
 ```
@@ -200,20 +185,19 @@ last_speed_ = coast_speed;                                     // 盲开固定�
 | 参数 | 作用 | NormalScene 值 |
 |------|------|---------------|
 | `lateral_offset_ratio` | 参考点横向偏移（贴边内侧） | 0.15 |
-| `cx_smooth_frames` | 参考点平滑到位帧数（0=硬切） | 100 |
 | `aim_dist_max` | 前视上限（NormalScene 不限） | 0 |
 
 ## 10. 显示
 
 - 黄线：`bird_centers_`（当前边界线，NormalScene=左边界）
 - 红点：`bird_aim_pt_`（前视点）
-- 蓝点：车底参考点（画面中心 + 平滑偏移）
+- 蓝点：车底参考点（画面中心 + 目标偏移）
 - 红线：鸟瞰垂直中心分界线
 
 ## 11. 与其他场景的关系
 
-| 场景 | 沿边方向 | cx 平滑 | 前视上限 |
-|------|---------|---------|---------|
-| NormalScene（默认） | 全局继承（默认左） | **是（100帧）** | 无 |
-| TrafficSignScene | fork_side 联动（0→左/1→右） | 否 | 无 |
-| CarScene | 实时检测（障碍对侧） | 否 | 0.4 |
+| 场景 | 沿边方向 | 前视上限 |
+|------|---------|---------|
+| NormalScene（默认） | 全局继承（默认左） | 无 |
+| TrafficSignScene | fork_side 联动（0→左/1→右） | 无 |
+| CarScene | 实时检测（障碍对侧） | 0.4 |
