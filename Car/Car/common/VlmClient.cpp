@@ -62,11 +62,14 @@ int VlmClient::parseAction(const std::string& cleaned) {
     return -1;
 }
 
-// ---- 前缀匹配，兼容流式截断输出 ----
-int VlmClient::parseEarlyAction(const std::string& cleaned) {
-    if (cleaned.compare(0, strlen("直走"), "直走") == 0) return 0;
-    if (cleaned.compare(0, strlen("右转"), "右转") == 0) return 1;
-    return -1;
+// ---- 找最后出现的动作词（思考+动作分隔文本 / 流式截断都兼容） ----
+int VlmClient::findLastAction(const std::string& cleaned) {
+    size_t zc = cleaned.rfind("直走");
+    size_t zz = cleaned.rfind("右转");
+    if (zc == std::string::npos && zz == std::string::npos) return -1;
+    if (zc == std::string::npos) return 1;
+    if (zz == std::string::npos) return 0;
+    return (zc > zz) ? 0 : 1;
 }
 
 // ---- 准备发送给 VLM 的图片 ----
@@ -133,7 +136,7 @@ int VlmClient::callVlmApi(const std::vector<uint8_t>& jpeg_bytes,
         },
         {
             {"type", "text"},
-            {"text", "只输出最终动作。注意先读完整句：近道、捷径、更短路线类表达通常指右转，但被否定或被\"才怪\"等推翻时不能按右转处理。"},
+            {"text", "请先报出你识别到的牌面文字，再简要说明推理过程，最后给出最终动作。注意先读完整句：近道、捷径、更短路线类表达通常指右转，但被否定或被\"才怪\"等推翻时不能按右转处理。"},
         },
     });
     json messages = json::array({
@@ -149,7 +152,7 @@ int VlmClient::callVlmApi(const std::vector<uint8_t>& jpeg_bytes,
     json request_body = {
         {"model",       cfg.model},
         {"temperature", 0},
-        {"max_tokens",  4},
+        {"max_tokens",  cfg.max_tokens},
         {"stream",      true},
         {"messages",    std::move(messages)},
     };
@@ -227,7 +230,7 @@ int VlmClient::callVlmApi(const std::vector<uint8_t>& jpeg_bytes,
 
     int action = parseAction(cleaned);
     if (action < 0) {
-        action = parseEarlyAction(cleaned);
+        action = findLastAction(cleaned);
     }
     if (action < 0) {
         std::cerr << "[VlmClient] 输出无法解析: \""

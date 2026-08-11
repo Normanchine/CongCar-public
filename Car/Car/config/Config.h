@@ -18,6 +18,10 @@ struct SceneControlParams {
 
     // PersonScene：行人底部到达鸟瞰图高度的此比例时停车（0~1，默认0.5=鸟瞰图一半高度）
     float person_stop_ratio = 0.5f;
+
+    // TrafficSignScene：右转决策后盲开帧数（递减渐变右转，走够后恢复巡线）
+    int   turn_blind_frames = 30;
+    float turn_blind_speed  = 0.5f;   // 右转盲开固定速度 (m/s)
 };
 
 struct ForkConfig {
@@ -107,6 +111,7 @@ struct VlmConfig {
     float       box_padding_ratio = 0.06f;
     int         stable_frames     = 3;
     int         delay_frames      = 0;    // 稳定后延迟帧数（等车靠近标志）
+    int         max_tokens        = 400;  // 输出 token 上限（思考+动作）
 };
 
 struct AIConfig {

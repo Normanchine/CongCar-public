@@ -9,7 +9,7 @@
     "pid_d": 1.5,
     "pid_p_right": 0.35,
     "pid_d_right": 1.5,
-    "default_follow_edge": -1,
+    "default_follow_edge": 1,
     "car_length": 0.193,
     "car_cy_ratio": 0.95,
     "aim_dist_near": 0.15,
@@ -33,7 +33,7 @@
     },
     "scene": {
       "NormalScene": { "lateral_offset_ratio": 0.15, "cx_smooth_frames": 100 },
-      "TrafficSignScene": { "lateral_offset_ratio": 0.15 },
+      "TrafficSignScene": { "lateral_offset_ratio": 0.15, "turn_blind_frames": 50, "turn_blind_speed": 0.5 },
       "CarScene": { "lateral_offset_ratio": 0.1, "aim_dist_max": 0.10 },
       "PersonScene": { "lateral_offset_ratio": 0.15, "person_stop_ratio": 0.5 }
     }
@@ -52,7 +52,7 @@
       "input_h": 256,
       "confidence_threshold": 0.40,
       "nms_threshold": 0.65,
-      "lost_frame_limit": 20,
+      "lost_frame_limit": 10,
       "class_num": 3,
       "classes": ["sign","person","car"],
       "colors": [[40,220,40],[40,80,255],[255,210,40]],
@@ -62,12 +62,13 @@
       "api_key": "",
       "base_url": "https://qianfan.baidubce.com/v2",
       "model": "ernie-4.5-turbo-vl-32k",
-      "deadline_seconds": 4.0,
+      "deadline_seconds": 10,
       "max_upload_width": 250,
       "max_upload_height": 96,
       "box_padding_ratio": 0.06,
       "stable_frames": 3,
-      "delay_frames": 13
+      "delay_frames": 13,
+      "max_tokens": 400
     }
   },
 

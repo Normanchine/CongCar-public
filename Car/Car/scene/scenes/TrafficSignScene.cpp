@@ -9,7 +9,7 @@
 #include <sys/stat.h>
 #include <thread>
 
-//REGISTER_SCENE(TrafficSignScene)
+REGISTER_SCENE(TrafficSignScene)
 
 // ============================================================================
 // Follower 子类方法
@@ -17,9 +17,15 @@
 
 void TrafficSignScene::Follower::onCenterline(const cv::Mat& mask,
                                               std::vector<cv::Point2f>& centers,
-                                              SharedContext* /*ctx*/) {
-    // 直走(0)→沿左边界(-1)；右转(1)→沿右边界(+1)
-    pathplan::extractBoundary(mask, centers, (fork_side == 1) ? 1 : -1);
+                                              SharedContext* ctx) {
+    // 沿边方向与 fork_side 同步：1=右边界(+1)，0=左边界(-1)。
+    // 进入场景默认右边界（路牌在右侧，保证看到完整路牌）；VLM 决策后按 fork_side 走。
+    // 同步 follow_edge_ 让 onPD 按当前边界选对应 PD，并写入全局 follow_edge_global，
+    // 这样切回 NormalScene 时首帧继承同一边界，不会跳回默认左边界。
+    int edge = (fork_side == 1) ? 1 : -1;
+    setFollowEdge(edge);
+    ctx->follow_edge_global.store(edge, std::memory_order_release);
+    pathplan::extractBoundary(mask, centers, edge);
     pathplan::smoothCenterline(centers);
 }
 
@@ -28,6 +34,27 @@ void TrafficSignScene::Follower::onFork(cv::Mat& wide_mask, SharedContext* ctx) 
     pathplan::handleFork(wide_mask, fork_state_,
                          fork_side, fk.confirm_rows,
                          fk.persist_frames, fk.width_threshold, 1);
+}
+
+bool TrafficSignScene::Follower::blindTurnRight(int frames, float speed, SharedContext* ctx) {
+    const auto& ctrl = ctx->config.control;
+
+    // 首次调用初始化盲开帧数
+    if (turn_frames_left_ <= 0) {
+        turn_frames_left_ = frames;
+    }
+
+    // 全程右满舵：steering_dir 处理 AR 镜像（正常=右偏到 pwm_max，镜像=左偏到 pwm_min）
+    float pwm = (ctx->steering_dir > 0) ? ctrl.pwm_max : ctrl.pwm_min;
+    last_pwm_ = pwm;
+    ctx->steering_pwm.store(pwm);
+
+    // 盲开固定速度（场景参数 turn_blind_speed）
+    last_speed_ = speed;
+    ctx->target_speed.store(last_speed_);
+
+    turn_frames_left_--;
+    return turn_frames_left_ > 0;
 }
 
 // ============================================================================
@@ -149,6 +176,7 @@ void TrafficSignScene::handleApproach(SharedContext* ctx, const cv::Mat& seg_mas
                     }).detach();
 
                     vlm_state_ = VlmState::WAIT_VLM;
+                    ctx->scene_manager.hold();  // 等待 VLM 决策期间阻止场景切换（防 DetTask 切走）
                     delay_counter_ = 0;
                     stable_count_ = 0;
                     return;  // 不巡线，等 WAIT_VLM 接管
@@ -161,8 +189,8 @@ void TrafficSignScene::handleApproach(SharedContext* ctx, const cv::Mat& seg_mas
         delay_counter_ = 0;
     }
 
-    // 未触发 VLM：正常巡线
-    follower_.fork_side = 0;
+    // 未触发 VLM：正常巡线（进入场景默认右边界，路牌在右侧，保证看到完整路牌）
+    follower_.fork_side = 1;
     follower_.process(seg_mask, ctx);
 }
 
@@ -177,6 +205,7 @@ void TrafficSignScene::handleWaitVlm(SharedContext* ctx) {
     if (r >= 0) {
         cached_fork_side_ = r;
         vlm_state_ = VlmState::DRIVE;
+        // 不立即 release：右转盲开期间保持 hold 阻止切换；直走/盲开结束时由 handleDrive release
 
         auto now = std::chrono::steady_clock::now();
         auto latency_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -199,6 +228,18 @@ void TrafficSignScene::handleWaitVlm(SharedContext* ctx) {
 void TrafficSignScene::handleDrive(SharedContext* ctx, const cv::Mat& seg_mask) {
     // 全程宽鸟瞰由 PathFollower 内部统一处理，无需临时改 bird_width
     follower_.fork_side = cached_fork_side_;
+
+    if (cached_fork_side_ == 1 && !follower_.turn_blind_done_) {
+        // 右转决策：岔路被等宽裁剪走不了巡线，改用盲开右转（0.5速度+递减渐变）
+        const auto& tscfg = ctx->config.control.scene.at("TrafficSignScene");
+        if (follower_.blindTurnRight(tscfg.turn_blind_frames, tscfg.turn_blind_speed, ctx))
+            return;  // 盲开中（hold 阻止切换）
+        follower_.turn_blind_done_ = true;   // 盲开结束，标记完成
+        ctx->scene_manager.release();        // 恢复允许切换
+    } else if (cached_fork_side_ == 0) {
+        ctx->scene_manager.release();        // 直走：恢复允许切换，正常巡线
+    }
+
     follower_.process(seg_mask, ctx);
 }
 

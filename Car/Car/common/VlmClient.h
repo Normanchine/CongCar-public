@@ -30,6 +30,7 @@ private:
     // 解析清洗后的输出：0=直走, 1=右转, -1=无法识别
     static int parseAction(const std::string& cleaned);
 
-    // 前缀匹配，兼容流式截断输出
-    static int parseEarlyAction(const std::string& cleaned);
+    // 找清洗文本中最后出现的动作词（"直走"/"右转"哪个在更靠后位置取哪个）。
+    // 兼容"思考：…动作：右转"分隔文本和流式截断（动作在末尾，截断也基本完整）。
+    static int findLastAction(const std::string& cleaned);
 };

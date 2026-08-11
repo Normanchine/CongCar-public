@@ -15,6 +15,8 @@ inline void to_json(json& j, const SceneControlParams& s) {
         {"aim_dist_max", s.aim_dist_max},
         {"cx_smooth_frames", s.cx_smooth_frames},
         {"person_stop_ratio", s.person_stop_ratio},
+        {"turn_blind_frames", s.turn_blind_frames},
+        {"turn_blind_speed",  s.turn_blind_speed},
     };
 }
 
@@ -23,6 +25,8 @@ inline void from_json(const json& j, SceneControlParams& s) {
     if (j.contains("aim_dist_max")) j.at("aim_dist_max").get_to(s.aim_dist_max);
     if (j.contains("cx_smooth_frames")) j.at("cx_smooth_frames").get_to(s.cx_smooth_frames);
     if (j.contains("person_stop_ratio")) j.at("person_stop_ratio").get_to(s.person_stop_ratio);
+    if (j.contains("turn_blind_frames")) j.at("turn_blind_frames").get_to(s.turn_blind_frames);
+    if (j.contains("turn_blind_speed"))  j.at("turn_blind_speed").get_to(s.turn_blind_speed);
 }
 
 // ---- ForkConfig 序列化 ----
@@ -163,6 +167,7 @@ inline void to_json(json& j, const VlmConfig& v) {
         {"box_padding_ratio", v.box_padding_ratio},
         {"stable_frames",     v.stable_frames},
         {"delay_frames",      v.delay_frames},
+        {"max_tokens",        v.max_tokens},
     };
 }
 
@@ -176,6 +181,7 @@ inline void from_json(const json& j, VlmConfig& v) {
     if (j.contains("box_padding_ratio")) j.at("box_padding_ratio").get_to(v.box_padding_ratio);
     if (j.contains("stable_frames"))     j.at("stable_frames").get_to(v.stable_frames);
     if (j.contains("delay_frames"))      j.at("delay_frames").get_to(v.delay_frames);
+    if (j.contains("max_tokens"))        j.at("max_tokens").get_to(v.max_tokens);
 }
 
 // ---- AIConfig 序列化（嵌套 segmentation + detection + vlm） ----

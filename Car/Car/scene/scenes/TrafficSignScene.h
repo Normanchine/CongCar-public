@@ -34,7 +34,15 @@ private:
     // 重写 onCenterline/onFork：按 fork_side 选边界方向（PD/速度用基类全局参数）
     class Follower : public PathFollower {
     public:
-        int fork_side = 0;  // 0=直走, 1=右转
+        int fork_side = 1;  // 沿边方向：1=右边界（进入场景默认右，路牌在右侧）；0=左边界（VLM决策直走）
+
+        // 右转盲开状态（DRIVE 右转：固定速度 + 全程右满舵，走够帧数后恢复巡线）
+        int  turn_frames_left_ = 0;      // 剩余盲开帧数
+        bool turn_blind_done_  = false;  // 右转盲开是否已完成（完成后不再重复盲开）
+
+        // 右转盲开一帧；返回 true=仍在盲开中，false=已走完恢复巡线
+        bool blindTurnRight(int frames, float speed, SharedContext* ctx);
+
     protected:
         void  onCenterline(const cv::Mat& mask, std::vector<cv::Point2f>& centers,
                            SharedContext* ctx) override;
