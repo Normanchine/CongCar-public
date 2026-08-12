@@ -19,6 +19,10 @@ struct SceneControlParams {
     // TrafficSignScene：右转决策后盲开帧数（递减渐变右转，走够后恢复巡线）
     int   turn_blind_frames = 30;
     float turn_blind_speed  = 0.5f;   // 右转盲开固定速度 (m/s)
+
+    // TrafficSignScene：停车后倒车帧数（停车受惯性冲过头，倒车退回一段距离）
+    int   backup_frames = 20;
+    float backup_speed  = -0.1f;   // 倒车速度 (m/s)，负值=后退
 };
 
 struct ForkConfig {

@@ -101,85 +101,93 @@ void TrafficSignScene::handleApproach(SharedContext* ctx, const cv::Mat& seg_mas
     }
 
     // 稳定计数 + 延时 → 发起 VLM 请求
-    const uint16_t pwm_neutral = static_cast<uint16_t>(ctx->config.uart.pwm_neutral);
-
     if (best && best_score > 0.4f) {
         stable_count_++;
         if (stable_count_ >= vlm_cfg.stable_frames) {
             delay_counter_++;
             if (delay_counter_ >= vlm_cfg.delay_frames) {
-                cv::Mat work_frame;
-                if (ctx->work_frame_queue.tryConsume(work_frame)) {
-                    auto jpeg_bytes = VlmClient::prepareSignImage(
-                        work_frame, best->x1, best->y1, best->x2, best->y2, vlm_cfg);
+                // 全局决策已设置（全赛只判断一次）：跳过 VLM，直接复用缓存决策
+                int global_decision = ctx->traffic_decision.load(std::memory_order_acquire);
 
-                    // 先停车，再发 VLM 请求
-                    ctx->uart_io->sendControl(0.0f, pwm_neutral);
-                    ctx->target_speed.store(0.0f, std::memory_order_release);
-                    ctx->steering_pwm.store(static_cast<float>(pwm_neutral), std::memory_order_release);
+                if (global_decision < 0) {
+                    // ---- 首次：未决策，取工作帧发起 VLM 请求 ----
+                    cv::Mat work_frame;
+                    if (ctx->work_frame_queue.tryConsume(work_frame)) {
+                        auto jpeg_bytes = VlmClient::prepareSignImage(
+                            work_frame, best->x1, best->y1, best->x2, best->y2, vlm_cfg);
 
-                    std::cout << "[TrafficSignScene] 已停车，发起 VLM 请求 score="
-                              << best_score << " size=" << jpeg_bytes.size() / 1024 << "KB"
-                              << std::endl;
+                        std::cout << "[TrafficSignScene] 发起 VLM 请求 score="
+                                  << best_score << " size=" << jpeg_bytes.size() / 1024 << "KB"
+                                  << std::endl;
 
-                    // 调试：异步保存 VLM 输入图像
-                    if (ctx->thread_pool) {
-                        auto jpeg_copy = jpeg_bytes;
-                        ctx->thread_pool->enqueueWithPriority(1, [jpeg = std::move(jpeg_copy)]() {
-                            mkdir("./debug_vlm", 0755);
-                            auto now = std::chrono::system_clock::now();
-                            auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                now.time_since_epoch()).count();
-                            std::string path = "./debug_vlm/vlm_" + std::to_string(ms) + ".jpg";
-                            std::ofstream ofs(path, std::ios::binary);
-                            if (ofs) {
-                                ofs.write(reinterpret_cast<const char*>(jpeg.data()), jpeg.size());
-                                std::cout << "[TrafficSignScene] VLM 图像已保存: " << path << std::endl;
-                            }
-                        });
-                    }
+                        // 调试：异步保存 VLM 输入图像
+                        if (ctx->thread_pool) {
+                            auto jpeg_copy = jpeg_bytes;
+                            ctx->thread_pool->enqueueWithPriority(1, [jpeg = std::move(jpeg_copy)]() {
+                                mkdir("./debug_vlm", 0755);
+                                auto now = std::chrono::system_clock::now();
+                                auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                    now.time_since_epoch()).count();
+                                std::string path = "./debug_vlm/vlm_" + std::to_string(ms) + ".jpg";
+                                std::ofstream ofs(path, std::ios::binary);
+                                if (ofs) {
+                                    ofs.write(reinterpret_cast<const char*>(jpeg.data()), jpeg.size());
+                                    std::cout << "[TrafficSignScene] VLM 图像已保存: " << path << std::endl;
+                                }
+                            });
+                        }
 
-                    vlm_request_start_ = std::chrono::steady_clock::now();
-                    ctx->vlm_state.store(1, std::memory_order_release);
+                        vlm_request_start_ = std::chrono::steady_clock::now();
+                        ctx->vlm_state.store(1, std::memory_order_release);
 
-                    // detached thread + shared_ptr<atomic> 异步执行 VLM 请求
-                    // promise 堆分配：避免超时后栈析构导致内层线程踩野指针
-                    vlm_result_ = std::make_shared<std::atomic<int>>(-1);
-                    std::thread([jpeg = std::move(jpeg_bytes),
-                                 cfg = vlm_cfg,
-                                 result = vlm_result_]() {
-                        auto p = std::make_shared<std::promise<int>>();
-                        auto f = p->get_future();
+                        // detached thread + shared_ptr<atomic> 异步执行 VLM 请求
+                        // promise 堆分配：避免超时后栈析构导致内层线程踩野指针
+                        vlm_result_ = std::make_shared<std::atomic<int>>(-1);
+                        std::thread([jpeg = std::move(jpeg_bytes),
+                                     cfg = vlm_cfg,
+                                     result = vlm_result_]() {
+                            auto p = std::make_shared<std::promise<int>>();
+                            auto f = p->get_future();
 
-                        std::thread([p, jpeg = std::move(jpeg), cfg]() {
-                            try {
-                                p->set_value(VlmClient::callVlmApi(jpeg, cfg));
-                            } catch (const std::exception& e) {
-                                std::cerr << "[TrafficSignScene] VLM 异常: "
-                                          << e.what() << "，兜底直走" << std::endl;
-                                try { p->set_value(0); } catch (...) {}
-                            } catch (...) {
-                                std::cerr << "[TrafficSignScene] VLM 未知异常，兜底直走" << std::endl;
-                                try { p->set_value(0); } catch (...) {}
+                            std::thread([p, jpeg = std::move(jpeg), cfg]() {
+                                try {
+                                    p->set_value(VlmClient::callVlmApi(jpeg, cfg));
+                                } catch (const std::exception& e) {
+                                    std::cerr << "[TrafficSignScene] VLM 异常: "
+                                              << e.what() << "，兜底直走" << std::endl;
+                                    try { p->set_value(0); } catch (...) {}
+                                } catch (...) {
+                                    std::cerr << "[TrafficSignScene] VLM 未知异常，兜底直走" << std::endl;
+                                    try { p->set_value(0); } catch (...) {}
+                                }
+                            }).detach();
+
+                            auto deadline_ms = std::chrono::milliseconds(
+                                static_cast<long>(cfg.deadline_seconds * 1000));
+                            if (f.wait_for(deadline_ms) == std::future_status::ready) {
+                                result->store(f.get(), std::memory_order_release);
+                            } else {
+                                std::cerr << "[TrafficSignScene] VLM 超时 ("
+                                          << cfg.deadline_seconds << "s)，兜底直走" << std::endl;
+                                result->store(0, std::memory_order_release);
                             }
                         }).detach();
 
-                        auto deadline_ms = std::chrono::milliseconds(
-                            static_cast<long>(cfg.deadline_seconds * 1000));
-                        if (f.wait_for(deadline_ms) == std::future_status::ready) {
-                            result->store(f.get(), std::memory_order_release);
-                        } else {
-                            std::cerr << "[TrafficSignScene] VLM 超时 ("
-                                      << cfg.deadline_seconds << "s)，兜底直走" << std::endl;
-                            result->store(0, std::memory_order_release);
-                        }
-                    }).detach();
-
-                    vlm_state_ = VlmState::WAIT_VLM;
-                    ctx->scene_manager.hold();  // 等待 VLM 决策期间阻止场景切换（防 DetTask 切走）
-                    delay_counter_ = 0;
-                    stable_count_ = 0;
-                    return;  // 不巡线，等 WAIT_VLM 接管
+                        vlm_requested_ = true;
+                        beginBackup(ctx);  // 停车 + 倒车，倒完进 WAIT_VLM 等 VLM 决策
+                        return;
+                    }
+                } else {
+                    // ---- 复用全局决策：不发 VLM，直接按缓存决策走 ----
+                    cached_fork_side_ = global_decision;
+                    vlm_requested_ = false;
+                    ctx->vlm_decision.store(global_decision, std::memory_order_release);
+                    ctx->vlm_state.store(2, std::memory_order_release);
+                    std::cout << "[TrafficSignScene] 复用全局决策: "
+                              << (global_decision == 0 ? "直走" : "右转")
+                              << "，跳过 VLM" << std::endl;
+                    beginBackup(ctx);  // 停车 + 倒车，倒完直接 DRIVE
+                    return;
                 }
             }
             stable_count_ = 0;
@@ -195,6 +203,55 @@ void TrafficSignScene::handleApproach(SharedContext* ctx, const cv::Mat& seg_mas
 }
 
 // ============================================================================
+// 阶段1.5：停车 + 倒车退回（惯性冲过头，倒车退到合适位置）
+// ============================================================================
+
+void TrafficSignScene::beginBackup(SharedContext* ctx) {
+    const float pwm_neutral = ctx->config.uart.pwm_neutral;
+
+    // 先停车（已停稳，再倒车）
+    ctx->target_speed.store(0.0f, std::memory_order_release);
+    ctx->steering_pwm.store(pwm_neutral, std::memory_order_release);
+    ctx->uart_io->sendControl(0.0f, static_cast<uint16_t>(pwm_neutral));
+
+    // 进入倒车阶段
+    const auto& tscfg = ctx->config.control.scene.at("TrafficSignScene");
+    backup_frames_left_ = tscfg.backup_frames;
+    vlm_state_ = VlmState::BACKUP;
+    ctx->scene_manager.hold();  // 等待决策期间阻止场景切换（防 DetTask 切走）
+    delay_counter_ = 0;
+    stable_count_ = 0;
+}
+
+void TrafficSignScene::handleBackup(SharedContext* ctx) {
+    const auto& tscfg = ctx->config.control.scene.at("TrafficSignScene");
+    const float pwm_neutral = ctx->config.uart.pwm_neutral;
+
+    // 倒车：负速度（后退）+ 舵回正
+    ctx->target_speed.store(tscfg.backup_speed, std::memory_order_release);
+    ctx->steering_pwm.store(pwm_neutral, std::memory_order_release);
+    ctx->uart_io->sendControl(tscfg.backup_speed, static_cast<uint16_t>(pwm_neutral));
+
+    backup_frames_left_--;
+    if (backup_frames_left_ <= 0) {
+        // 倒车结束 → 停车
+        ctx->target_speed.store(0.0f, std::memory_order_release);
+        ctx->steering_pwm.store(pwm_neutral, std::memory_order_release);
+        ctx->uart_io->sendControl(0.0f, static_cast<uint16_t>(pwm_neutral));
+
+        if (vlm_requested_) {
+            // 首次：发起了 VLM → 进 WAIT_VLM 等决策
+            vlm_state_ = VlmState::WAIT_VLM;
+            std::cout << "[TrafficSignScene] 倒车完成，停车等待 VLM 决策" << std::endl;
+        } else {
+            // 复用全局决策：未发 VLM → 直接进 DRIVE 按缓存决策走
+            vlm_state_ = VlmState::DRIVE;
+            std::cout << "[TrafficSignScene] 倒车完成，按全局决策行驶" << std::endl;
+        }
+    }
+}
+
+// ============================================================================
 // 阶段2：停车等待 VLM 决策返回
 // ============================================================================
 
@@ -203,7 +260,11 @@ void TrafficSignScene::handleWaitVlm(SharedContext* ctx) {
 
     int r = vlm_result_->load(std::memory_order_acquire);
     if (r >= 0) {
-        cached_fork_side_ = r;
+        cached_fork_side_ = r;   // 本次进场景按 VLM 结果走
+        // 写入全局的应是"下一次"的方向：全赛只有一圈右转，本次右转后下次就是直走。
+        // 因此 traffic_decision 存 VLM 结果的反值，下次进场景直接读全局当 cached_fork_side_。
+        int next = (r == 1) ? 0 : 1;
+        ctx->traffic_decision.store(next, std::memory_order_release);
         vlm_state_ = VlmState::DRIVE;
         // 不立即 release：右转盲开期间保持 hold 阻止切换；直走/盲开结束时由 handleDrive release
 
@@ -216,7 +277,8 @@ void TrafficSignScene::handleWaitVlm(SharedContext* ctx) {
 
         std::cout << "[TrafficSignScene] VLM 决策: "
                   << (cached_fork_side_ == 0 ? "直走" : "右转")
-                  << " (耗时 " << latency_ms << "ms)" << std::endl;
+                  << " (耗时 " << latency_ms << "ms)；写入全局下次= "
+                  << (next == 0 ? "直走" : "右转") << std::endl;
     }
     // 未完成 → 继续停车等待（什么都不做）
 }
@@ -253,6 +315,7 @@ void TrafficSignScene::run(SharedContext* ctx) {
 
     switch (vlm_state_) {
     case VlmState::APPROACH: handleApproach(ctx, seg->mask);  break;
+    case VlmState::BACKUP:   handleBackup(ctx);                break;
     case VlmState::WAIT_VLM: handleWaitVlm(ctx);               break;
     case VlmState::DRIVE:    handleDrive(ctx, seg->mask);       break;
     }

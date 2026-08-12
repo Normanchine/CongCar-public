@@ -10,7 +10,7 @@
 
 // 交通标志分岔场景
 //   检测 traffic_sign → 裁剪标志图 → 调用 VLM API → 直走(左) / 右转(右)
-//   三阶段状态机：APPROACH（巡线+检测）→ WAIT_VLM（停车等待）→ DRIVE（按决策走）
+//   四阶段状态机：APPROACH（巡线+检测）→ BACKUP（停车后倒车退回）→ WAIT_VLM（停车等待）→ DRIVE（按决策走）
 class TrafficSignScene : public IScene {
 public:
     TrafficSignScene() = default;
@@ -19,11 +19,17 @@ public:
     void run(SharedContext* ctx) override;
 
 private:
-    // 三阶段状态
-    enum class VlmState { APPROACH, WAIT_VLM, DRIVE };
+    // 四阶段状态
+    enum class VlmState { APPROACH, BACKUP, WAIT_VLM, DRIVE };
 
     // 阶段1：正常巡线 + 检测交通标志 → 稳定+延时 → 发起 VLM 请求
     void handleApproach(SharedContext* ctx, const cv::Mat& seg_mask);
+
+    // 阶段1.5：停车后倒车退回（惯性冲过头，倒车 backup_frames 帧退到合适位置）
+    void handleBackup(SharedContext* ctx);
+
+    // 停车 + 进入倒车阶段（倒车 backup_frames 帧，倒完按 vlm_requested_ 分流到 WAIT_VLM/DRIVE）
+    void beginBackup(SharedContext* ctx);
 
     // 阶段2：停车等待 VLM 决策返回
     void handleWaitVlm(SharedContext* ctx);
@@ -58,5 +64,7 @@ private:
     int cached_fork_side_  = 0;
     int stable_count_      = 0;
     int delay_counter_     = 0;
+    int backup_frames_left_ = 0;   // 剩余倒车帧数（BACKUP 阶段每帧递减）
+    bool vlm_requested_    = false;  // 本次进场景是否发起了 VLM 请求（BACKUP 结束后分流用）
     std::chrono::steady_clock::time_point vlm_request_start_;
 };

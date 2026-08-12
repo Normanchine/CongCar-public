@@ -133,6 +133,12 @@ struct SharedContext {
     std::atomic<int>     vlm_decision{-1};     // -1=未决策, 0=直走, 1=右转
     std::atomic<int64_t> vlm_latency_ms{0};   // 最近一次 VLM 请求耗时(ms)
 
+    // ---- 全局交通标志决策（TrafficSignScene 写，跨场景持久，全赛只判断一次） ----
+    // 赛事全流程只有一圈走右转岔路，所以只需 VLM 判断一次。
+    // 存的是"下一次进场景要走的方向" = 本次 VLM 结果的反值（本次右转→全局直走）：
+    // -1=尚未决策（下次进 TrafficSignScene 会发起 VLM），0=直走，1=右转（后续进场景直接读它当 fork_side）
+    std::atomic<int> traffic_decision{-1};
+
     // ---- 分割→控制 唤醒机制 ----
     std::mutex              seg_cv_mtx_;
     std::condition_variable seg_cv_;

@@ -16,6 +16,8 @@ inline void to_json(json& j, const SceneControlParams& s) {
         {"person_stop_ratio", s.person_stop_ratio},
         {"turn_blind_frames", s.turn_blind_frames},
         {"turn_blind_speed",  s.turn_blind_speed},
+        {"backup_frames",     s.backup_frames},
+        {"backup_speed",      s.backup_speed},
     };
 }
 
@@ -25,6 +27,8 @@ inline void from_json(const json& j, SceneControlParams& s) {
     if (j.contains("person_stop_ratio")) j.at("person_stop_ratio").get_to(s.person_stop_ratio);
     if (j.contains("turn_blind_frames")) j.at("turn_blind_frames").get_to(s.turn_blind_frames);
     if (j.contains("turn_blind_speed"))  j.at("turn_blind_speed").get_to(s.turn_blind_speed);
+    if (j.contains("backup_frames")) j.at("backup_frames").get_to(s.backup_frames);
+    if (j.contains("backup_speed"))  j.at("backup_speed").get_to(s.backup_speed);
 }
 
 // ---- ForkConfig 序列化 ----
