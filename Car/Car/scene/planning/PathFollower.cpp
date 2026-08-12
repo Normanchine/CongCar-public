@@ -240,19 +240,9 @@ float PathFollower::onPD(float error, SharedContext* ctx) {
     return std::clamp(pwm, ctrl.pwm_min, ctrl.pwm_max);
 }
 
-float PathFollower::onSpeed(float error, SharedContext* ctx) {
+float PathFollower::onSpeed(float /*error*/, SharedContext* ctx) {
     const auto& ctrl = ctx->config.control;
 
-    float target = ctrl.max_speed;
-    float ae = std::abs(error);
-    if (ae > ctrl.steer_speed_threshold) {
-        float excess = ae - ctrl.steer_speed_threshold;
-        target = ctrl.max_speed / (1.0f + ctrl.steer_speed_k * excess);
-    }
-
-    // 减速立即生效，加速平滑恢复
-    if (target < last_speed_) {
-        return target;
-    }
-    return last_speed_ + (target - last_speed_) * ctrl.speed_recovery_k;
+    // 临时：全程匀速，去掉弯道降速与加速平滑（后续可能改回）
+    return ctrl.max_speed;
 }
