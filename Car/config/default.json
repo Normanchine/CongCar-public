@@ -9,7 +9,7 @@
     "pid_d": 1.5,
     "pid_p_right": 0.35,
     "pid_d_right": 1.5,
-    "default_follow_edge": 1,
+    "default_follow_edge": -1,
     "car_length": 0.193,
     "car_cy_ratio": 0.95,
     "aim_dist_near": 0.15,
@@ -32,10 +32,10 @@
       "width_threshold": 1.0
     },
     "scene": {
-      "NormalScene": { "lateral_offset_ratio": 0.0 },
-      "TrafficSignScene": { "lateral_offset_ratio": 0.15, "turn_blind_frames": 200, "turn_blind_speed": 0.05, "backup_frames": 100, "backup_speed": -0.05 },
+      "NormalScene": { "lateral_offset_ratio": 0.15 },
+      "TrafficSignScene": { "lateral_offset_ratio": 0.15, "turn_blind_frames": 40, "turn_blind_speed": 0.1, "backup_frames": 100, "backup_speed": -0.2, "right_turn_lock_seconds": 3.0 },
       "CarScene": { "lateral_offset_ratio": 0.1, "aim_dist_max": 0.10 },
-      "PersonScene": { "lateral_offset_ratio": 0.0, "person_stop_ratio": 0.5 }
+      "PersonScene": { "lateral_offset_ratio": 0.15, "person_stop_ratio": 0.5 }
     }
   },
 
@@ -67,7 +67,7 @@
       "max_upload_height": 96,
       "box_padding_ratio": 0.06,
       "stable_frames": 3,
-      "delay_frames": 10,
+      "delay_frames": 12,
       "max_tokens": 400
     }
   },

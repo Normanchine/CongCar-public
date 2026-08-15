@@ -85,7 +85,21 @@ void ControlTask::run() {
 
         auto t_start = std::chrono::steady_clock::now();
 
-        // 3b. 执行当前场景（不管按键状态，场景始终运行）
+        // 3b. 右转锁倒计时递减（真实帧间隔）；锁只减到 0，到 0 自动解锁
+        // last 每帧都更新（含锁为 0 时），保证置锁后第一次递减的 dt 是正常帧间隔
+        {
+            static auto last = std::chrono::steady_clock::now();
+            float dt = std::chrono::duration<float>(t_start - last).count();
+            last = t_start;
+            float lock = ctx_->right_turn_lock_seconds.load(std::memory_order_acquire);
+            if (lock > 0.0f) {
+                float remain = lock - dt;
+                if (remain < 0.0f) remain = 0.0f;
+                ctx_->right_turn_lock_seconds.store(remain, std::memory_order_release);
+            }
+        }
+
+        // 3c. 执行当前场景（不管按键状态，场景始终运行）
         ctx_->scene_manager.run(ctx_);
 
         // 3c. 按键/终端指令切换：只控制是否下发串口指令

@@ -23,6 +23,10 @@ struct SceneControlParams {
     // TrafficSignScene：停车后倒车帧数（停车受惯性冲过头，倒车退回一段距离）
     int   backup_frames = 20;
     float backup_speed  = -0.1f;   // 倒车速度 (m/s)，负值=后退
+
+    // TrafficSignScene：右转决策后的全局右转锁时长（秒）。
+    // 右转后锁定：① 再进场景直接复用右转不发VLM ② 全局跳过等宽。ControlTask 每帧递减，到 0 解锁。
+    float right_turn_lock_seconds = 3.0f;
 };
 
 struct ForkConfig {

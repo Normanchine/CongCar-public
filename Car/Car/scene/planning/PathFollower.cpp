@@ -62,12 +62,11 @@ bool PathFollower::process(const cv::Mat& seg_mask, SharedContext* ctx) {
     const auto& calib = ctx->config.calib;
     const auto& ctrl  = ctx->config.control;
 
-    // 首帧从ctx继承error/speed/沿边方向，场景切换无脉冲
+    // 首帧从ctx继承error/speed，防启动脉冲；边界各场景局部自管（Normal 固定左边界 -1）
     if (first_frame_) {
         last_error_ = ctx->last_error.load(std::memory_order_acquire);
         last_speed_ = ctx->target_speed.load(std::memory_order_acquire);
-        // 沿边方向从全局继承（不再固定左边界；CarScene 等场景会更新全局）
-        follow_edge_ = ctx->follow_edge_global.load(std::memory_order_acquire);
+        follow_edge_ = -1;   // 固定左边界，不继承全局（Car/Traffic 边界是局部，退出即作废）
     }
 
     // ---- 0. 宽鸟瞰变换 ----
@@ -80,7 +79,10 @@ bool PathFollower::process(const cv::Mat& seg_mask, SharedContext* ctx) {
     cv::Mat mask = wide_mask;
 
     // ---- 1.5 赛道等宽归一化（鸟瞰图）：每行只留第一个白段，多裁少补到平均宽度 ----
-    normalizeTrackWidth(mask);
+    // 右转锁期间全局跳过等宽（右转后的岔路新赛道不等宽，等宽会切坏）
+    if (ctx->right_turn_lock_seconds.load(std::memory_order_acquire) <= 0.0f) {
+        normalizeTrackWidth(mask);
+    }
 
     if (ctx->config.debug_mode) {
         std::lock_guard<std::mutex> lk(ctx->bird_mtx_);

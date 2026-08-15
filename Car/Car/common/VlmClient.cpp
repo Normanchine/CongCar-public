@@ -131,7 +131,7 @@ int VlmClient::callVlmApi(const std::vector<uint8_t>& jpeg_bytes,
             {"type", "image_url"},
             {"image_url", {
                 {"url", image_url},
-                {"detail", "low"},
+                {"detail", "high"},
             }},
         },
         {

@@ -46,8 +46,7 @@ void CarScene::run(SharedContext* ctx) {
         follower_.setFollowEdge(edge);
 
         ctx->car_edge.store(edge, std::memory_order_release);
-        // 更新全局沿边方向：切回 Normal 等场景后继续沿用（不切回默认左边界）
-        ctx->follow_edge_global.store(edge, std::memory_order_release);
+        // 边界是 Car 场景局部：setFollowEdge 已切，退出场景即作废，不写全局（Normal 固定左边界）
     } else {
         // 本帧无 car 框：清掉障碍点标记
         std::lock_guard<std::mutex> lk(ctx->car_obs_mtx_);

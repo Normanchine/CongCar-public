@@ -89,13 +89,8 @@ struct SharedContext {
     // -1=沿左边界 0=未锁存(沿中线) +1=沿右边界
     std::atomic<int> car_edge{0};
 
-    // ---- 全局沿边方向（所有场景首帧继承，CarScene 每帧改写） ----
-    // 场景切换不切回默认左边界，而是沿用上次使用的边界
-    std::atomic<int> follow_edge_global{-1};
-
     // ---- 当前巡线参考点横向偏移比例（PathFollower写，DisplayTask读，画蓝点） ----
     // 控制器每帧的目标偏移（-follow_edge_*lateral_offset_ratio），跨场景一致。
-    // 不能用 car_edge 代替：CarScene→Normal 切换后 car_edge 残留会导致偏移方向错。
     std::atomic<float> ref_ratio{0.0f};
 
     // ---- CarScene 障碍鸟瞰点（CarScene写，DisplayTask读，鸟瞰图画点） ----
@@ -138,6 +133,14 @@ struct SharedContext {
     // 存的是"下一次进场景要走的方向" = 本次 VLM 结果的反值（本次右转→全局直走）：
     // -1=尚未决策（下次进 TrafficSignScene 会发起 VLM），0=直走，1=右转（后续进场景直接读它当 fork_side）
     std::atomic<int> traffic_decision{-1};
+
+    // ---- 全局右转锁（TrafficSignScene 写，ControlTask 每帧递减，>0 表示锁定中） ----
+    // VLM 返回"右转"时置 right_turn_lock_seconds，锁定期间：
+    //   ① 右转决策锁住：再进 TrafficSignScene 直接复用右转，不发 VLM
+    //   ② 跳过等宽：所有场景巡线都不做 normalizeTrackWidth（岔路新赛道不等宽）
+    // ControlTask 主循环按真实帧间隔递减，到 0 自动解锁（恢复等宽 + 恢复判断）。
+    // 全局生效：退出 TrafficSignScene 后仍锁定直到倒计时结束。
+    std::atomic<float> right_turn_lock_seconds{0.0f};
 
     // ---- 分割→控制 唤醒机制 ----
     std::mutex              seg_cv_mtx_;

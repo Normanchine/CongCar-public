@@ -18,14 +18,11 @@ REGISTER_SCENE(TrafficSignScene)
 void TrafficSignScene::Follower::onCenterline(const cv::Mat& mask,
                                               std::vector<cv::Point2f>& centers,
                                               SharedContext* ctx) {
-    // 沿边方向与 fork_side 同步：1=右边界(+1)，0=左边界(-1)。
-    // 进入场景默认右边界（路牌在右侧，保证看到完整路牌）；VLM 决策后按 fork_side 走。
-    // 同步 follow_edge_ 让 onPD 按当前边界选对应 PD，并写入全局 follow_edge_global，
-    // 这样切回 NormalScene 时首帧继承同一边界，不会跳回默认左边界。
-    int edge = (fork_side == 1) ? 1 : -1;
-    setFollowEdge(edge);
-    ctx->follow_edge_global.store(edge, std::memory_order_release);
-    pathplan::extractBoundary(mask, centers, edge);
+    // 右转锁中（决策右转）：沿右边界（extractBoundary 取每行最右=岔路外沿），走右岔路。
+    // 非锁中（APPROACH 接近路牌 / 直走）：中线巡线（等宽处理后取左右中点）。
+    bool lock = ctx->right_turn_lock_seconds.load(std::memory_order_acquire) > 0.0f;
+    setFollowEdge(lock ? 1 : 0);
+    pathplan::extractBoundary(mask, centers, lock ? 1 : 0);
     pathplan::smoothCenterline(centers);
 }
 
@@ -106,6 +103,17 @@ void TrafficSignScene::handleApproach(SharedContext* ctx, const cv::Mat& seg_mas
         if (stable_count_ >= vlm_cfg.stable_frames) {
             delay_counter_++;
             if (delay_counter_ >= vlm_cfg.delay_frames) {
+                // 右转锁锁定中：决策锁住，直接复用右转（不发 VLM、不重新判断）
+                if (ctx->right_turn_lock_seconds.load(std::memory_order_acquire) > 0.0f) {
+                    cached_fork_side_ = 1;
+                    vlm_requested_ = false;
+                    ctx->vlm_decision.store(1, std::memory_order_release);
+                    ctx->vlm_state.store(2, std::memory_order_release);
+                    std::cout << "[TrafficSignScene] 右转锁中，复用右转，跳过 VLM" << std::endl;
+                    beginBackup(ctx);  // 停车 + 倒车，倒完直接 DRIVE（右转盲开）
+                    return;
+                }
+
                 // 全局决策已设置（全赛只判断一次）：跳过 VLM，直接复用缓存决策
                 int global_decision = ctx->traffic_decision.load(std::memory_order_acquire);
 
@@ -265,6 +273,7 @@ void TrafficSignScene::handleWaitVlm(SharedContext* ctx) {
         // 因此 traffic_decision 存 VLM 结果的反值，下次进场景直接读全局当 cached_fork_side_。
         int next = (r == 1) ? 0 : 1;
         ctx->traffic_decision.store(next, std::memory_order_release);
+
         vlm_state_ = VlmState::DRIVE;
         // 不立即 release：右转盲开期间保持 hold 阻止切换；直走/盲开结束时由 handleDrive release
 
@@ -292,11 +301,20 @@ void TrafficSignScene::handleDrive(SharedContext* ctx, const cv::Mat& seg_mask) 
     follower_.fork_side = cached_fork_side_;
 
     if (cached_fork_side_ == 1 && !follower_.turn_blind_done_) {
-        // 右转决策：岔路被等宽裁剪走不了巡线，改用盲开右转（0.5速度+递减渐变）
+        // 右转决策：岔路被等宽裁剪走不了巡线，改用盲开右转
         const auto& tscfg = ctx->config.control.scene.at("TrafficSignScene");
         if (follower_.blindTurnRight(tscfg.turn_blind_frames, tscfg.turn_blind_speed, ctx))
             return;  // 盲开中（hold 阻止切换）
         follower_.turn_blind_done_ = true;   // 盲开结束，标记完成
+
+        // 盲开结束后开启右转锁：决策锁住 + 跳过等宽，right_turn_lock_seconds 秒。
+        // 锁的全部时长用于"进入岔路的右边界巡线"（盲开本身满舵硬走，不需锁）。
+        // ControlTask 每帧递减，到 0 自动解锁；退出场景后仍生效。
+        ctx->right_turn_lock_seconds.store(tscfg.right_turn_lock_seconds,
+                                           std::memory_order_release);
+        std::cout << "[TrafficSignScene] 右转锁开启 " << tscfg.right_turn_lock_seconds
+                  << "s（决策锁住+跳过等宽）" << std::endl;
+
         ctx->scene_manager.release();        // 恢复允许切换
     } else if (cached_fork_side_ == 0) {
         ctx->scene_manager.release();        // 直走：恢复允许切换，正常巡线
