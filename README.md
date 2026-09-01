@@ -14,7 +14,7 @@
 ## 构建与运行
 
 ```bash
-git clone https://github.com/Normanchine/CongCar.git
+git clone https://github.com/Normanchine/CongCar-public.git
 cd CongCar
 chmod +x build_all.sh run_car.sh run_calibrate.sh
 ./build_all.sh Release
